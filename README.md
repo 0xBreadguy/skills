@@ -61,6 +61,12 @@ Download archives from `dist/` or build them locally:
 npm run build
 ```
 
+The build script syncs `skills/moss-wallet-cli/SKILL.md` and
+`skills/moss-wallet-cli/references/permissions.md` from the latest stable
+`megaeth-labs/wallet-cli` GitHub release before packaging. It keeps this repo's
+`moss-wallet-cli` skill name and protocol-routing section. Override the source
+with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release testing.
+
 Then unzip into the target agent's skill directory:
 
 ```bash
@@ -121,6 +127,7 @@ npx skills add . --list
 ```
 
 The MOSS CLI behavior in `moss-wallet-cli` should stay aligned with
-`megaeth-labs/wallet-cli`. MegaETH protocol and network guidance should be
-checked against `docs.megaeth.com`, `mega-dev.gitbook.io`, and the relevant
-canonical repositories before release.
+`megaeth-labs/wallet-cli`; `npm run build` refreshes the copied CLI skill
+content from that repo's latest release. MegaETH protocol and network guidance
+should be checked against `docs.megaeth.com`, `mega-dev.gitbook.io`, and the
+relevant canonical repositories before release.
