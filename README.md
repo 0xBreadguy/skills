@@ -1,71 +1,137 @@
-# MOSS Wallet — Agent Skills
+# MegaETH Agent Skills
 
-Public distribution for the **MOSS Wallet SDK** Agent Skills (MegaETH embedded wallet) —
-eight on-demand skills that teach coding agents (Claude Code, Cursor, Codex, Gemini) to
-build MOSS integrations correctly: exact method names, safe defaults, the permission model,
-and the patterns that quietly break things when missed.
+Public distribution for MegaETH agent skills. This repo uses the standard
+flat skills repository layout:
 
-This repo is the public marketplace; the skills are authored in MegaETH's docs and mirrored
-here. It doubles as a Claude Code plugin marketplace.
+```text
+skills/<skill-name>/SKILL.md
+```
+
+Installable skills are namespaced at the skill-name level, not by nested
+directories.
 
 ## Install
 
-### Claude Code
+### Skills CLI
+
+List available skills:
 
 ```bash
-/plugin marketplace add https://github.com/megaeth-labs/skills.git
-/plugin install moss-wallet@moss-skills
-/reload-plugins
+npx skills add megaeth-labs/skills --list
 ```
 
-The agent loads the right skill automatically when a task is relevant. Run `/plugin` →
-**Installed** to see all eight.
-
-### Cursor · Codex · Gemini · Copilot
+Install all skills for the detected agent:
 
 ```bash
-git clone https://github.com/megaeth-labs/skills
-cp -r moss-skills/moss-wallet/skills/* .claude/skills/
+npx skills add megaeth-labs/skills --skill '*'
 ```
 
-Or download [`dist/moss-wallet-skills.zip`](dist/moss-wallet-skills.zip) and unzip it:
+Install a single skill:
 
 ```bash
-unzip moss-wallet-skills.zip -d .claude/skills    # or ~/.claude/skills for all projects
+npx skills add megaeth-labs/skills --skill megaeth-developer-skills
+npx skills add megaeth-labs/skills --skill moss-wallet-sdk
 ```
 
-### claude.ai
+### Manual Skill Copy
 
-Upload an individual skill archive from [`dist/`](dist/) (e.g. `dist/moss-wallet-sdk.zip`)
-under **Settings → Capabilities → Skills**.
+Copy an individual skill directory into your agent's skill path:
 
-## The eight skills
+```text
+skills/megaeth-developer-skills/
+skills/moss-wallet-sdk/
+skills/moss-wallet-cli/
+skills/moss-wallet-security-review/
+```
 
-| Skill | Use it when you are… |
+Common destinations:
+
+```text
+Codex project-local:       .agents/skills/<skill-name>/
+Claude Code project-local: .claude/skills/<skill-name>/
+OpenClaw project-local:    skills/<skill-name>/
+Hermes project-local:      .hermes/skills/<skill-name>/
+```
+
+### ZIP Archives
+
+Download archives from `dist/` or build them locally:
+
+```bash
+npm run build
+```
+
+The build script syncs `skills/moss-wallet-cli/SKILL.md` and
+`skills/moss-wallet-cli/references/permissions.md` from the latest stable
+`megaeth-labs/wallet-cli` GitHub release before packaging. It keeps this repo's
+`moss-wallet-cli` skill name and adds a short routing note to use
+`megaeth-developer-skills` for protocol-specific guidance. Override the source
+with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release testing.
+
+Then unzip into the target agent's skill directory:
+
+```bash
+unzip dist/moss-wallet-skills.zip -d .agents/skills
+unzip dist/megaeth-developer-skills.zip -d .agents/skills
+```
+
+## Skills
+
+| Skill | Use it when you are... |
 | --- | --- |
-| `moss-wallet-sdk` | building core integrations (connect, transfer, contract calls, signing, balances) — the entry point that routes to the rest |
-| `moss-wallet-permissions` | implementing Smart Approvals: grants, `silent` execution, agent/automation/checkout flows |
-| `moss-wallet-react` | wiring `MegaProvider` + hooks in a React 19 app, or using the wagmi connector |
-| `moss-wallet-server-verify` | verifying wallet ownership on the backend (SIWE or JWT) |
-| `moss-wallet-paymaster` | configuring gas sponsorship and the partner paymaster endpoint |
-| `moss-wallet-cli` | automating MOSS from a terminal or CI with the `mega` CLI |
-| `moss-wallet-privy-migration` | moving a user's assets from a Privy embedded wallet into MOSS |
-| `moss-wallet-security-review` | auditing an existing integration before launch |
+| `megaeth-developer-skills` | building dApps, smart contracts, protocol integrations, frontends, payments, agents, or debugging workflows on MegaETH |
+| `moss-wallet-sdk` | integrating MOSS into an app: core SDK, React hooks, wagmi, Smart Approvals, paymaster, backend verification, or Privy migration |
+| `moss-wallet-cli` | operating a MOSS wallet from a terminal or coding agent with `mega moss` delegated keys and scoped execution |
+| `moss-wallet-security-review` | auditing an existing MOSS integration before launch |
 
 ## Layout
 
+```text
+skills/
+  megaeth-developer-skills/
+    SKILL.md
+    references/
+  moss-wallet-sdk/
+    SKILL.md
+    references/
+    scripts/
+  moss-wallet-cli/
+    SKILL.md
+    references/
+  moss-wallet-security-review/
+    SKILL.md
+    references/
+dist/                                 # generated ZIP archives
+scripts/build-dist.mjs                # archive builder
 ```
-.claude-plugin/marketplace.json   # marketplace manifest (exposes the plugin)
-moss-wallet/                      # the plugin
-├── .claude-plugin/plugin.json
-└── skills/<skill-name>/
-    ├── SKILL.md                  # instructions + safe defaults
-    ├── references/              # bundled MOSS docs, loaded on demand
-    └── scripts/                 # deterministic helpers the skill can run
-dist/                            # downloadable archives (full pack + per-skill)
-```
+
+Protocol-specific guidance is reference material inside
+`megaeth-developer-skills`, not a subskill. For example,
+`skills/megaeth-developer-skills/references/protocols/aave.md` covers Aave
+developer integration, and
+`skills/megaeth-developer-skills/references/protocols/moss-cli/aave.md` covers
+Aave `mega moss` execution recipes. Use `moss-wallet-cli` for command safety,
+delegated-key permissions, and wallet operation mechanics.
+
+## Future Plugins
+
+Do not create Claude/Codex plugin packages for plain markdown recipes. Add a
+real plugin package later only when a capability needs plugin behavior: bundled
+MCP servers, app manifests, tool binaries, auth/config, marketplace install
+units, or independent release cadence. Until then, keep protocol and data
+guidance under `skills/*/references/`.
 
 ## Updating
 
-Generated from MegaETH's docs repo via `skills/scripts/sync-mirror.mjs`; maintainers push
-updates from there.
+After editing skills or references:
+
+```bash
+npm run build
+npx skills add . --list
+```
+
+The MOSS CLI behavior in `moss-wallet-cli` should stay aligned with
+`megaeth-labs/wallet-cli`; `npm run build` refreshes the copied CLI skill
+content from that repo's latest release. MegaETH protocol and network guidance
+should be checked against `docs.megaeth.com`, `mega-dev.gitbook.io`, and the
+relevant canonical repositories before release.

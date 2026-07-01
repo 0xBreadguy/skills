@@ -1,0 +1,242 @@
+# Resources
+
+## Attribution & Sources
+
+This skill combines multiple sources. Key technical claims are validated against primary sources:
+
+| Source | What it validates |
+|--------|-------------------|
+| [MegaEVM Spec](https://github.com/megaeth-labs/mega-evm) | Gas model, resource limits, intrinsic gas, SSTORE formula |
+| [Foundry Prompting Guide](https://getfoundry.sh/introduction/prompting/) | Testing patterns, project structure, deployment scripts |
+| [MegaETH Docs](https://docs.megaeth.com) | RPC methods, real-time API, chain configuration |
+
+**Contributors:**
+- Original patterns: [0xBreadguy/megaeth-ai-developer-skills](https://github.com/0xBreadguy/megaeth-ai-developer-skills)
+- Foundry integration: [clawdybotty/megaeth-foundry-developer](https://github.com/clawdybotty/megaeth-foundry-developer)
+
+## Primary MegaEVM Specification
+
+The authoritative source for MegaETH's execution layer is now the spec site:
+
+| Document | URL |
+|----------|-----|
+| Spec landing page | [docs.megaeth.com/spec](https://docs.megaeth.com/spec) |
+| MegaEVM overview | [docs.megaeth.com/spec/megaevm/overview](https://docs.megaeth.com/spec/megaevm/overview) |
+| Hardfork/spec progression | [docs.megaeth.com/spec/hardfork-spec](https://docs.megaeth.com/spec/hardfork-spec) |
+| System contracts overview | [docs.megaeth.com/spec/system-contracts/overview](https://docs.megaeth.com/spec/system-contracts/overview) |
+| Upstream implementation repo | [megaeth-labs/mega-evm](https://github.com/megaeth-labs/mega-evm) |
+
+## Official Documentation
+
+- **MegaETH Docs home**: https://docs.megaeth.com/readme.md
+- **Spec (LLM-friendly, queryable docs site)**: https://docs.megaeth.com/spec
+- **Realtime API**: https://docs.megaeth.com/developer-docs/overview-2/realtime-api.md
+- **Connect to MegaETH**: https://docs.megaeth.com/user-guide/connect.md
+- **Get ETH on Testnet**: https://docs.megaeth.com/user-guide/faucet.md
+- **Get Funds on Mainnet**: https://docs.megaeth.com/user-guide/bridge.md
+- **VRF**: https://docs.megaeth.com/developer-docs/vrf
+- **Docs sitemap**: https://docs.megaeth.com/sitemap.md
+- **Full docs export**: https://docs.megaeth.com/llms-full.txt
+
+**Agent note:** Prefer `.md` documentation URLs when possible. The docs site supports LLM-friendly retrieval, sitemap discovery, and ask-style query patterns.
+
+## Core MegaETH Stack References
+
+- **MOSS Skills**: https://github.com/megaeth-labs/moss-skills
+- **MegaETH Wallet CLI (MOSS CLI)**: https://github.com/megaeth-labs/wallet-cli
+- **Awesome MegaETH AI**: https://github.com/megaeth-labs/awesome-megaeth-ai
+- **USDm overview / token context**: See this repo's `usdm-stablecoin.md` plus the canonical token registry below
+- **drand VRF docs**: https://docs.megaeth.com/developer-docs/vrf
+
+Use this repo for the core MegaETH stack. Use Awesome MegaETH AI for broader
+protocol-specific and application-specific skills. See
+[awesome-megaeth-ai.md](awesome-megaeth-ai.md) for the in-skill summary and
+routing rules.
+
+## Source Code
+
+- **MegaEVM**: https://github.com/megaeth-labs/mega-evm
+
+## Token Registry / Token Lists
+
+**Official registry:** https://github.com/megaeth-labs/mega-tokenlist
+
+The canonical source for verified token addresses, symbols, decimals, and logos on MegaETH.
+
+Use this repo to:
+- Look up token contract addresses
+- Get token metadata (name, symbol, decimals)
+- Access official token logos
+- Verify token legitimacy
+- Check whether a token is listed for **mainnet** vs the separate **testnet** tokenlist
+
+Recent examples relevant to agents:
+- testnet `USDM` / `MegaUSD` deployment support via `megaeth_testnet`
+- testnet `MEGA` deployment support via `megaeth_testnet`
+
+Agents should prefer the token registry over ad hoc explorer scraping when they need canonical token metadata.
+
+## Core Developer Tooling
+
+### mega-evme CLI
+Transaction replay and MegaEVM-specific debugging:
+```bash
+git clone https://github.com/megaeth-labs/mega-evm
+cd mega-evm/bin/mega-evme
+cargo build --release
+```
+
+### Opcode-level gas analysis
+Use MegaEVM's opcode gas profiler when diagnosing low-level execution costs:
+https://github.com/megaeth-labs/mega-evm/blob/main/scripts/trace_opcode_gas.py
+
+## Block Explorers
+
+| Network | Explorer |
+|---------|----------|
+| Mainnet | https://mega.etherscan.io |
+| Testnet | https://megaeth-testnet-v2.blockscout.com |
+| Uptime | https://uptime.megaeth.com |
+
+## RPC Providers
+
+| Provider | Type | Notes |
+|----------|------|-------|
+| MegaETH | Public | Rate limited |
+| Alchemy | Managed | Geo-distributed |
+| QuickNode | Managed | Geo-distributed |
+
+**Mainnet**: `https://mainnet.megaeth.com/rpc`
+**Testnet**: `https://carrot.megaeth.com/rpc`
+
+## Standards
+
+### EIP-1153 (Transient Storage)
+Temporary storage that's cleared after each transaction — avoids storage gas costs:
+https://eips.ethereum.org/EIPS/eip-1153
+
+**Why use on MegaETH:**
+- `TSTORE`/`TLOAD` have no storage gas cost
+- Perfect for reentrancy locks, temporary state
+- Supported on MegaETH
+
+### EIP-6909 (Minimal Multi-Token)
+Simplified alternative to ERC-1155 — no callbacks, minimal interface, granular approvals:
+https://eips.ethereum.org/EIPS/eip-6909
+
+**Why use on MegaETH:**
+- Single contract for multiple tokens (fewer SSTORE operations)
+- No mandatory callbacks (less gas)
+- Solady provides gas-optimized implementation
+
+### Realtime API (`realtime_sendRawTransaction`)
+Synchronous transaction submission with immediate receipt:
+https://docs.megaeth.com/dev/read/rpc/realtime_sendRawTransaction
+
+**Note:** Use the current official `realtime_sendRawTransaction` method in new
+MegaETH code. Older materials may mention `eth_sendRawTransactionSync`; verify
+endpoint support before using historical names.
+
+Supported in:
+- viem (native)
+- wagmi (native)
+- ethers.js (via custom provider)
+
+## Indexers
+
+### Envio HyperSync
+High-performance historical data queries:
+https://docs.envio.dev/docs/HyperSync/overview
+
+Recommended for:
+- Large `eth_getLogs` queries
+- Historical trade data
+- Event indexing
+
+## Libraries
+
+### Solady
+Gas-optimized Solidity utilities:
+https://github.com/Vectorized/solady
+
+Key for MegaETH:
+- `RedBlackTreeLib` — storage-efficient mappings
+- `SafeTransferLib` — optimized token transfers
+
+### viem
+TypeScript Ethereum library:
+https://viem.sh
+
+MegaETH chain config:
+```typescript
+import { defineChain } from 'viem';
+
+export const megaeth = defineChain({
+  id: 4326,
+  name: 'MegaETH',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://mainnet.megaeth.com/rpc'] }
+  }
+});
+```
+
+## Bridges
+
+### Canonical Bridge (OP Stack)
+Ethereum ↔ MegaETH:
+
+| Contract | Address (Ethereum) |
+|----------|-------------------|
+| L1StandardBridgeProxy | `0x0CA3A2FBC3D770b578223FBB6b062fa875a2eE75` |
+| OptimismPortalProxy | `0x7f82f57F0Dd546519324392e408b01fcC7D709e8` |
+
+Simple ETH bridge: Send ETH directly to L1StandardBridgeProxy.
+
+## Predeployed Contracts (MegaETH)
+
+| Contract | Address |
+|----------|---------|
+| WETH9 | `0x4200000000000000000000000000000000000006` |
+| Multicall3 | `0xcA11bde05977b3631167028862bE2a173976CA11` |
+| High-Precision Timestamp | `0x6342000000000000000000000000000000000002` |
+| MEGA Token | `0x28B7E77f82B25B95953825F1E3eA0E36c1c29861` |
+
+See OP Stack docs for full predeploy list.
+
+## Security
+
+### Auditors
+Recommended by MegaETH team:
+- **Spearbit**: https://spearbit.com
+- **Cantina**: https://cantina.xyz
+
+### Monitoring
+Consider runtime monitoring for:
+- Unusual gas patterns
+- Failed transaction spikes
+- Storage cost anomalies
+
+## Community
+
+- **Discord**: (contact MegaETH team)
+- **Twitter**: @megaeth
+
+## Quick Reference
+
+```bash
+# Check balance
+cast balance <address> --rpc-url https://mainnet.megaeth.com/rpc
+
+# Send transaction
+cast send <to> --value 0.01ether --rpc-url https://mainnet.megaeth.com/rpc
+
+# Call contract
+cast call <contract> "method(args)" --rpc-url https://mainnet.megaeth.com/rpc
+
+# Get gas price (always 0.001 gwei)
+cast gas-price --rpc-url https://mainnet.megaeth.com/rpc
+
+# Deploy with Foundry
+forge script Deploy.s.sol --rpc-url https://mainnet.megaeth.com/rpc --broadcast --skip-simulation
+```

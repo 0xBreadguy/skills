@@ -1,0 +1,10 @@
+{
+  "name": "moss-skills",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-dist.mjs",
+    "validate": "npm run build && npx skills add . --list"
+  }
+}
