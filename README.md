@@ -64,7 +64,8 @@ npm run build
 The build script syncs `skills/moss-wallet-cli/SKILL.md` and
 `skills/moss-wallet-cli/references/permissions.md` from the latest stable
 `megaeth-labs/wallet-cli` GitHub release before packaging. It keeps this repo's
-`moss-wallet-cli` skill name and protocol-routing section. Override the source
+`moss-wallet-cli` skill name and adds a short routing note to use
+`megaeth-developer-skills` for protocol-specific guidance. Override the source
 with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release testing.
 
 Then unzip into the target agent's skill directory:
@@ -104,10 +105,13 @@ dist/                                 # generated ZIP archives
 scripts/build-dist.mjs                # archive builder
 ```
 
-Protocol-specific guidance is reference material inside a skill, not a
-subskill. For example,
-`skills/moss-wallet-cli/references/protocols/aave.md` is loaded by the
-`moss-wallet-cli` skill when the user needs Aave CLI execution guidance.
+Protocol-specific guidance is reference material inside
+`megaeth-developer-skills`, not a subskill. For example,
+`skills/megaeth-developer-skills/references/protocols/aave.md` covers Aave
+developer integration, and
+`skills/megaeth-developer-skills/references/protocols/moss-cli/aave.md` covers
+Aave `mega moss` execution recipes. Use `moss-wallet-cli` for command safety,
+delegated-key permissions, and wallet operation mechanics.
 
 ## Future Plugins
 

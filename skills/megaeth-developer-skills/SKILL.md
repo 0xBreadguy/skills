@@ -6,9 +6,9 @@ description: >
   debugging workflows on MegaETH. Covers network setup, RPC and Realtime API
   usage, Foundry deployment, MegaEVM gas and storage behavior, frontend
   patterns, canonical tokenlist usage, USDm, drand VRF, ERC-8004 agents,
-  x402 payments, and protocol-specific developer guidance. Route MOSS wallet
-  application integration to moss-wallet-sdk and MOSS CLI execution to
-  moss-wallet-cli.
+  x402 payments, and protocol-specific developer and `mega moss` execution
+  guidance. Route MOSS wallet application integration to moss-wallet-sdk and
+  MOSS CLI command mechanics to moss-wallet-cli.
 ---
 
 # MegaETH Developer Skills
@@ -35,8 +35,9 @@ work.
 2. Read the matching reference before giving implementation details.
 3. Be explicit about chain ID, RPC URL, token address/decimals source, gas
    estimation behavior, and whether the task needs MOSS wallet guidance.
-4. For protocol integrations, keep developer advice here. Route agent-operated
-   wallet actions and `mega moss` commands to `moss-wallet-cli`.
+4. For protocol integrations, keep protocol addresses, calldata, ABI
+   signatures, and workflow recipes here. Route `mega moss` command safety and
+   delegated-key permission mechanics to `moss-wallet-cli`.
 5. Prefer official docs and canonical repos for current addresses and APIs.
    If an address or endpoint may have changed, tell the user to verify against
    the linked source.
@@ -50,8 +51,9 @@ work.
 - Treat `realtime_sendRawTransaction` as the current realtime transaction
   method. Historical `realtime_sendRawTransaction` guidance may appear in older
   materials; verify before using it in new code.
-- Keep protocol-specific contract interactions separate from MOSS CLI execution
-  recipes unless the user explicitly asks for agent-operated wallet actions.
+- Keep protocol-specific app integration guidance and agent-operated MOSS CLI
+  execution recipes in their separate protocol references. Use
+  `moss-wallet-cli` for wallet command and permission mechanics.
 - Use secure private-key handling for Foundry and scripts. Prefer keystores,
   environment variables, or external signers; never commit secrets.
 
@@ -75,6 +77,7 @@ Read the relevant files:
 - x402 payments: [references/x402-payments.md](references/x402-payments.md)
 - Protocol directory: [references/protocol-directory.md](references/protocol-directory.md)
 - Protocol-specific developer guidance: [references/protocols/](references/protocols/)
+- Protocol-specific `mega moss` recipes: [references/protocols/moss-cli/](references/protocols/moss-cli/)
 - Awesome MegaETH AI ecosystem index: [references/awesome-megaeth-ai.md](references/awesome-megaeth-ai.md)
 - Testing: [references/testing.md](references/testing.md)
 - Security: [references/security.md](references/security.md)

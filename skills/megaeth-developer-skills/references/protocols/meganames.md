@@ -2,7 +2,7 @@
 
 Use this for `.mega` / MegaNames developer integration. For agent-operated
 `mega moss` execution recipes, read
-`moss-wallet-cli/references/protocols/meganames.md`.
+`references/protocols/moss-cli/meganames.md`.
 
 ## Source Status
 
@@ -197,7 +197,7 @@ to register.
 - For a registration app, use `moss-wallet-sdk` and Smart Approvals scoped to
   USDM approval plus the exact MegaNames action.
 - For terminal execution, use
-  `moss-wallet-cli/references/protocols/meganames.md`.
+  `references/protocols/moss-cli/meganames.md`.
 - Prefer permit UX in apps. In CLI workflows, use explicit approve plus
   register unless the current wallet tooling supports a verified permit flow.
 

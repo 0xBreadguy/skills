@@ -1,7 +1,7 @@
 # Kumbaya On MegaETH
 
 Use this for dApp developer integration guidance. For `mega moss` scoped-key
-execution recipes, read `moss-wallet-cli/references/protocols/kumbaya.md`.
+execution recipes, read `references/protocols/moss-cli/kumbaya.md`.
 
 ## Source Status
 
@@ -179,7 +179,7 @@ implementation.
 ## MOSS Integration Notes
 
 - App integration: use `moss-wallet-sdk`.
-- CLI execution: use `moss-wallet-cli/references/protocols/kumbaya.md`.
+- CLI execution: use `references/protocols/moss-cli/kumbaya.md`.
 - For agent-operated writes, quote first, set explicit slippage, use exact
   call scopes, and bundle ERC20 approval with the consuming swap or liquidity
   call in one `mega moss execute --calls` batch.

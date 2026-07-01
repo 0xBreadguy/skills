@@ -45,28 +45,9 @@ const groups = [
   },
 ];
 
-const walletCliRoutingSection = `## Protocol Execution References
-
-Protocol-specific \`mega moss\` execution recipes live under
-[references/protocols/](references/protocols/). Use these only for wallet CLI
-operation. For dApp developer integration guidance, use
-\`megaeth-developer-skills\`.
-
-- [references/protocols/aave.md](references/protocols/aave.md)
-- [references/protocols/kumbaya.md](references/protocols/kumbaya.md)
-- [references/protocols/prism.md](references/protocols/prism.md)
-- [references/protocols/kyber.md](references/protocols/kyber.md)
-- [references/protocols/sir.md](references/protocols/sir.md)
-- [references/protocols/meganames.md](references/protocols/meganames.md)
-- [references/protocols/warren.md](references/protocols/warren.md)
-
-## When To Switch Skills
-
-- MegaETH network, contract, frontend, tokenlist, or protocol development:
-  use \`megaeth-developer-skills\`.
-- MOSS SDK, React hooks, Smart Approvals in an app, paymaster, backend auth,
-  or Privy migration: use \`moss-wallet-sdk\`.
-- Auditing an existing MOSS integration: use \`moss-wallet-security-review\`.`;
+const walletCliRoutingNote = `For protocol-specific contract addresses, calldata, and workflow recipes, use
+\`megaeth-developer-skills\`; use this skill for \`mega moss\` execution and
+delegated-key permission rules.`;
 
 function runZip(output, cwd, entries) {
   const args = ['-qr', output, ...entries];
@@ -144,12 +125,12 @@ function adaptWalletCliSkill(skillSource) {
   if (!/^name:\s*moss-wallet-cli\s*$/m.test(skill)) {
     throw new Error('wallet-cli SKILL.md frontmatter did not contain expected name');
   }
-  if (!skill.includes('## Protocol Execution References')) {
+  if (!skill.includes('For protocol-specific contract addresses')) {
     const marker = '\n## Transfer Funds\n';
     if (!skill.includes(marker)) {
       throw new Error('wallet-cli SKILL.md missing expected Transfer Funds section');
     }
-    skill = skill.replace(marker, `\n${walletCliRoutingSection}\n\n## Transfer Funds\n`);
+    skill = skill.replace(marker, `\n${walletCliRoutingNote}\n\n## Transfer Funds\n`);
   }
   return skill;
 }
@@ -180,10 +161,12 @@ async function syncWalletCliSkillFromLatestRelease() {
       join(walletCliSkillDir, 'SKILL.md'),
       adaptWalletCliSkill(readFileSync(join(releaseRoot, 'SKILL.md'), 'utf8')),
     );
-    mkdirSync(join(walletCliSkillDir, 'references'), { recursive: true });
+    const referencesDir = join(walletCliSkillDir, 'references');
+    rmSync(referencesDir, { recursive: true, force: true });
+    mkdirSync(referencesDir, { recursive: true });
     cpSync(
       join(releaseRoot, 'references', 'permissions.md'),
-      join(walletCliSkillDir, 'references', 'permissions.md'),
+      join(referencesDir, 'permissions.md'),
     );
     console.log(`synced moss-wallet-cli from ${walletCliRepo} ${release.tag_name}`);
   } finally {

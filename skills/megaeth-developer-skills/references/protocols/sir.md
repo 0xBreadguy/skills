@@ -2,7 +2,7 @@
 
 Use this for dApp developer integration guidance for SIR Trading. For
 agent-operated `mega moss` execution recipes, read
-`moss-wallet-cli/references/protocols/sir.md`.
+`references/protocols/moss-cli/sir.md`.
 
 ## Source Status
 
@@ -191,7 +191,7 @@ the source material. `bid` is payable and uses native ETH as `msg.value`.
 - For app UX, use `moss-wallet-sdk` Smart Approvals with narrow call and spend
   scopes.
 - For terminal execution, use
-  `moss-wallet-cli/references/protocols/sir.md`.
+  `references/protocols/moss-cli/sir.md`.
 - Bundle ERC20 approval and the consuming Vault call when possible.
 - Use `eth_sendRawTransactionSync` only for direct wallet or SDK submission
   paths where the chosen client supports it; the MOSS CLI handles relay-backed

@@ -316,28 +316,9 @@ Uninstalling or logging out does not revoke on-chain delegated keys; use
 For the full permission schema and examples, read
 [references/permissions.md](references/permissions.md).
 
-## Protocol Execution References
-
-Protocol-specific `mega moss` execution recipes live under
-[references/protocols/](references/protocols/). Use these only for wallet CLI
-operation. For dApp developer integration guidance, use
-`megaeth-developer-skills`.
-
-- [references/protocols/aave.md](references/protocols/aave.md)
-- [references/protocols/kumbaya.md](references/protocols/kumbaya.md)
-- [references/protocols/prism.md](references/protocols/prism.md)
-- [references/protocols/kyber.md](references/protocols/kyber.md)
-- [references/protocols/sir.md](references/protocols/sir.md)
-- [references/protocols/meganames.md](references/protocols/meganames.md)
-- [references/protocols/warren.md](references/protocols/warren.md)
-
-## When To Switch Skills
-
-- MegaETH network, contract, frontend, tokenlist, or protocol development:
-  use `megaeth-developer-skills`.
-- MOSS SDK, React hooks, Smart Approvals in an app, paymaster, backend auth,
-  or Privy migration: use `moss-wallet-sdk`.
-- Auditing an existing MOSS integration: use `moss-wallet-security-review`.
+For protocol-specific contract addresses, calldata, and workflow recipes, use
+`megaeth-developer-skills`; use this skill for `mega moss` execution and
+delegated-key permission rules.
 
 ## Transfer Funds
 

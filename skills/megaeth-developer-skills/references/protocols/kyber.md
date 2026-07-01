@@ -1,7 +1,7 @@
 # KyberSwap On MegaETH
 
 Use this for dApp developer integration guidance. For `mega moss` scoped-key
-execution recipes, read `moss-wallet-cli/references/protocols/kyber.md`.
+execution recipes, read `references/protocols/moss-cli/kyber.md`.
 
 ## Source Of Truth
 

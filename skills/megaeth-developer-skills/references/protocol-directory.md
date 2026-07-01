@@ -1,8 +1,8 @@
 # MegaETH Protocol Directory
 
-Use this as a routing file for protocol-specific development advice. Keep
-general dApp integration guidance in this skill. Use `moss-wallet-cli` for
-agent-operated protocol actions through `mega moss`.
+Use this as a routing file for protocol-specific development advice and
+protocol-specific `mega moss` execution recipes. Use `moss-wallet-cli` for
+command safety, delegated-key permissions, and wallet operation mechanics.
 
 ## Current In-Repo Protocol References
 
@@ -25,6 +25,17 @@ agent-operated protocol actions through `mega moss`.
   guidance adapted from the MegaNames skill.
 - [protocols/warren.md](protocols/warren.md): Warren on-chain website, file,
   and NFT collection deployment guidance adapted from Warren tools.
+
+Protocol-specific MOSS CLI execution recipes live under
+[protocols/moss-cli/](protocols/moss-cli/):
+
+- [protocols/moss-cli/aave.md](protocols/moss-cli/aave.md)
+- [protocols/moss-cli/kyber.md](protocols/moss-cli/kyber.md)
+- [protocols/moss-cli/kumbaya.md](protocols/moss-cli/kumbaya.md)
+- [protocols/moss-cli/prism.md](protocols/moss-cli/prism.md)
+- [protocols/moss-cli/sir.md](protocols/moss-cli/sir.md)
+- [protocols/moss-cli/meganames.md](protocols/moss-cli/meganames.md)
+- [protocols/moss-cli/warren.md](protocols/moss-cli/warren.md)
 
 ## Coverage Status
 

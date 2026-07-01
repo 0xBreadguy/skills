@@ -23,8 +23,8 @@ For now:
 - Use `mega moss` for ordinary MegaETH wallet identity, delegated-key
   management, and protocol calls that have verified ABI recipes.
 - Use Warren's own scripts for Warren website/file/NFT deployment.
-- Use `references/protocols/meganames.md` to link a finished Warren token ID to
-  a `.mega` name.
+- Use `megaeth-developer-skills/references/protocols/moss-cli/meganames.md` to
+  link a finished Warren token ID to a `.mega` name.
 
 ## Network And Contracts
 

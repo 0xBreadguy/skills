@@ -3,7 +3,7 @@
 Use this for Warren on-chain website, file, and NFT collection deployment
 guidance. Warren's source material is script-oriented; for terminal execution
 use the Warren scripts rather than inventing raw contract calldata. For MOSS
-CLI-specific routing, read `moss-wallet-cli/references/protocols/warren.md`.
+CLI-specific routing, read `references/protocols/moss-cli/warren.md`.
 
 ## Source Status
 

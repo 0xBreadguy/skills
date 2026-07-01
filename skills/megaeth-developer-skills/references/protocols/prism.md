@@ -1,7 +1,7 @@
 # Prism On MegaETH
 
 Use this for dApp developer integration guidance. For `mega moss` scoped-key
-execution recipes, read `moss-wallet-cli/references/protocols/prism.md`.
+execution recipes, read `references/protocols/moss-cli/prism.md`.
 
 ## Source Status
 
@@ -190,7 +190,7 @@ const routes = await fetch("https://prismfi.cc/api/swaps/swap-pools").then((r) =
 ## MOSS Integration Notes
 
 - App integration: use `moss-wallet-sdk`.
-- CLI execution: use `moss-wallet-cli/references/protocols/prism.md`.
+- CLI execution: use `references/protocols/moss-cli/prism.md`.
 - For agent-operated writes, quote first, evaluate taxable-token routing,
   set explicit slippage, use exact call scopes, and bundle ERC20 approval with
   the consuming swap or liquidity call in one `mega moss execute --calls`

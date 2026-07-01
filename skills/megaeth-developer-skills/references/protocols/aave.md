@@ -1,7 +1,7 @@
 # Aave On MegaETH
 
 Use this for dApp developer integration guidance. For `mega moss` scoped-key
-execution recipes, read `moss-wallet-cli/references/protocols/aave.md`.
+execution recipes, read `references/protocols/moss-cli/aave.md`.
 
 ## Source Of Truth
 
@@ -73,7 +73,7 @@ reserve details where the app needs balances, debt, or collateral state.
 - ERC20 approval and the consuming Aave Pool call should be bundled where the
   wallet/smart-account path supports batching.
 - If using MOSS CLI relay-backed execution, follow
-  `moss-wallet-cli/references/protocols/aave.md`; standalone approvals can be
+  `references/protocols/moss-cli/aave.md`; standalone approvals can be
   reset at end-of-transaction and should not be split from supply/repay.
 
 ## Implementation Checklist

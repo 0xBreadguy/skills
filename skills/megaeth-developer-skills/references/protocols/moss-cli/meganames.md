@@ -228,7 +228,8 @@ Execute approval plus register in one batch.
 ## Link Warren Content
 
 Use this after a Warren deployment returns a token ID. See
-`references/protocols/warren.md` for Warren routing.
+`megaeth-developer-skills/references/protocols/moss-cli/warren.md` for Warren
+routing.
 
 ```bash
 TOKEN_ID=$MEGANAMES_TOKEN_ID_BASE10
