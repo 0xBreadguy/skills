@@ -25,7 +25,8 @@ General:
   MegaETH development skill covering Foundry, realtime transaction submission,
   MegaEVM gas/resource behavior, MOSS/MOSS CLI routing, USDm, drand VRF, and
   `mega-evme`.
-- `moss-skills` (`megaeth-labs/moss-skills`): this repo; MOSS wallet login,
+- `MegaETH Agent Skills` (`megaeth-labs/skills`): this repo; MegaETH developer
+  guidance plus MOSS wallet login,
   delegated-key lifecycle, permission inspection, revocation, and safer wallet
   execution patterns.
 
@@ -36,6 +37,10 @@ Payments:
   handling, and realtime transaction submission.
 - `usdm-skill`: USDm integration, ERC-2612 permit flows, payments, and usage
   across MegaNames, Kumbaya DEX, and paymaster workflows.
+- `uniswap-skills` (`Uniswap/uniswap-ai`): protocol-owned general Uniswap
+  integration skills. Use Uniswap's current v2/v3/v4 deployment pages to
+  resolve MegaETH addresses; do not assume an address from another chain or a
+  Kumbaya deployment.
 
 DeFi:
 
@@ -74,13 +79,12 @@ Agents:
 - `moss-cli` (`megaeth-labs/wallet-cli`): canonical wallet CLI for local login,
   delegated-key creation, permission inspection, scoped execution, and
   revocation.
-- `mtrkr-mcp-server`: external MCP candidate for MTRKR wallet intelligence on
-  MegaETH. Its repo claims read-only tools for `.mega` resolution, ERC-20/NFT
-  portfolios, liquidity positions, Prism concentrated-liquidity positions,
-  approval scans, token risk scans, address inspection, transaction decoding,
-  ETH/USD price, and wallet analytics. Treat these claims as unverified until
-  due diligence confirms installability, auth/payment requirements, privacy
-  behavior, read-only behavior, tool schemas, and output reliability.
+- `mtrkr-mcp-server` (`n1n4du/mtrkr-mcp-server`): an external repository that
+  claims MTRKR-backed MegaETH portfolio and inspection tools. No current
+  protocol-owned or MegaETH-owned source verified its uptime, data quality,
+  read-only guarantees, authentication, payment requirements, or privacy
+  behavior during this audit. Do not recommend or install it without that due
+  diligence.
 
 ## Learning Resources
 

@@ -39,8 +39,10 @@ const TRANSFER_TYPES = new Set(['native', 'erc20', 'erc721', 'erc1155']);
 function toBigInt(value, field) {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') {
-    if (!Number.isInteger(value) || value < 0) {
-      throw new Error(`${field} must be a non-negative integer (got ${value})`);
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(
+        `${field} must be a non-negative safe integer; use a decimal string for larger values (got ${value})`,
+      );
     }
     return BigInt(value);
   }
@@ -76,17 +78,28 @@ export function buildMigrationPlan({ balances, allowlist, from, to, chainId, gas
   if (!HEX_ADDRESS.test(String(from ?? ''))) {
     throw new Error('from (Privy EOA) must be a 0x-prefixed 40-hex address');
   }
-  if (!Number.isInteger(chainId) || chainId <= 0) {
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
     throw new Error('chainId must be a positive integer (e.g. 4326 mainnet, 6343 testnet)');
   }
   if (gasReserve === undefined || gasReserve === null) {
     throw new Error('gasReserve is required — leave native headroom so later transfers can pay gas');
   }
+  if (!Array.isArray(allowlist)) {
+    throw new Error('allowlist must be an array of ERC-20/NFT contract addresses');
+  }
+  for (const [i, address] of allowlist.entries()) {
+    if (!HEX_ADDRESS.test(String(address ?? ''))) {
+      throw new Error(`allowlist[${i}] must be a 0x-prefixed 40-hex address`);
+    }
+  }
   const reserve = toBigInt(gasReserve, 'gasReserve');
-  const allow = new Set((allowlist ?? []).map(normalizeAddress));
+  const allow = new Set(allowlist.map(normalizeAddress));
 
   // Defense in depth: this helper must never see key material.
-  for (const b of balances) {
+  for (const [i, b] of balances.entries()) {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) {
+      throw new Error(`balances[${i}] must be an asset object`);
+    }
     for (const k of Object.keys(b)) {
       if (/privatekey|private_key|seed|mnemonic|secret/i.test(k)) {
         throw new Error(`balances entry must not contain key material (found field "${k}") — this is an asset migration, not a key migration`);
@@ -99,7 +112,7 @@ export function buildMigrationPlan({ balances, allowlist, from, to, chainId, gas
   let nativeEntry = null;
 
   for (const b of balances) {
-    if (!b || !TRANSFER_TYPES.has(b.type)) {
+    if (!TRANSFER_TYPES.has(b.type)) {
       throw new Error(`balance entry has invalid type: ${JSON.stringify(b?.type)} (allowed: native, erc20, erc721, erc1155)`);
     }
 
@@ -120,7 +133,12 @@ export function buildMigrationPlan({ balances, allowlist, from, to, chainId, gas
       to,
       contractAddress: b.contractAddress,
     };
-    if (b.tokenId !== undefined) base.tokenId = String(b.tokenId);
+    if (b.type === 'erc721' || b.type === 'erc1155') {
+      if (b.tokenId === undefined) {
+        throw new Error(`${b.type} entry requires tokenId`);
+      }
+      base.tokenId = toBigInt(b.tokenId, `${b.type} tokenId`).toString();
+    }
 
     // Non-allowlisted → kept but skipped (never executed).
     if (!allow.has(normalizeAddress(b.contractAddress))) {
@@ -134,7 +152,11 @@ export function buildMigrationPlan({ balances, allowlist, from, to, chainId, gas
     } else {
       // ERC-721 / ERC-1155
       const out = { ...base, status: 'planned' };
-      if (b.type === 'erc1155') out.amount = toBigInt(b.amount ?? 1, 'erc1155 amount').toString();
+      if (b.type === 'erc1155') {
+        const amount = toBigInt(b.amount ?? 1, 'erc1155 amount');
+        out.amount = amount.toString();
+        if (amount === 0n) out.status = 'skipped';
+      }
       nfts.push(out);
     }
   }

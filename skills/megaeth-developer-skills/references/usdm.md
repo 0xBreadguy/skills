@@ -1,278 +1,161 @@
-# USDm Stablecoin on MegaETH
+# MegaUSD (USDM / USDm)
 
-USDm is a core MegaETH stack primitive: the chain's native stablecoin and a foundational payment/integration asset for developers. Use this file for USDm token operations, ERC-2612 permit flows, approvals, balance checks, and general USDm integration patterns in MegaETH applications.
+MegaUSD is MegaETH's native stablecoin. Use the canonical MegaETH token list for
+public token metadata and re-check it before generating production code.
 
-## What This Skill Is For
+## Canonical token-list deployments
 
-Use this skill when the user asks for:
-- Transferring, approving, or checking USDm balances
-- Using ERC-2612 permit for gasless approvals
-- Integrating USDm payments into contracts or frontends
-- Understanding USDm's role in MegaETH's fee model
+| Network | Chain ID | Address |
+| --- | ---: | --- |
+| Mainnet | 4326 | `0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7` |
+| Testnet | 6343 | `0x72d4db19E3AE6f8ed47B5337ab00D69685277cF4` |
 
-## Token Details
+The token name is `MegaUSD`, it has 18 decimals, and the canonical token list
+uses symbol `USDM`. Product copy also commonly styles the symbol as `USDm`.
 
-| Property | Value |
-|----------|-------|
-| Name | MegaUSD |
-| Symbol | USDm |
-| Decimals | 18 |
-| Standard | ERC-20 + ERC-2612 (permit) |
+The MOSS Wallet CLI release may configure a different test token for its own
+testnet examples. That CLI default is not a replacement for the public canonical
+token-list address. Resolve the intended environment explicitly before creating
+permissions or calldata.
 
-### Contract Addresses
+Source: https://github.com/megaeth-labs/mega-tokenlist
 
-| Network | Address |
-|---------|---------|
-| Mainnet (4326) | `0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7` |
-| Testnet (6343) | `0xFd16854D7fDC1399F05d5F22bfa0A2311d54eA07` |
+## Backing claims
 
-**Explorers:**
-- Mainnet: [Blockscout](https://megaeth.blockscout.com/address/0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7) · [Etherscan](https://mega.etherscan.io/address/0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7)
+MegaETH's public material describes MegaUSD as a native stablecoin backed by
+U.S. Treasury-based reserves. Do not infer a specific issuer stack, reserve
+instrument allocation, yield recipient, or sequencer-cost mechanism unless a
+current issuer or MegaETH source states it.
 
-## Background
+## ERC-20 operations
 
-USDm is issued through Ethena's stablecoin stack (USDtb rails). Reserves are primarily invested in BlackRock's tokenized U.S. Treasury fund (BUIDL) via Securitize. The yield from reserves covers MegaETH's sequencer operating costs, enabling the chain to price gas at-cost rather than extracting margin from users.
+```ts
+import { erc20Abi, formatUnits, parseUnits } from "viem";
 
-USDm is the primary payment token across the MegaETH stack and should be treated as a default application/payment primitive when designing MegaETH products.
+const USDM = "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7" as const;
 
-## Default Stack Decisions (Opinionated)
+const [balance, allowance] = await Promise.all([
+  publicClient.readContract({
+    address: USDM,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [owner],
+  }),
+  publicClient.readContract({
+    address: USDM,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: [owner, spender],
+  }),
+]);
 
-### 1. Use permit over approve when possible
-USDm supports ERC-2612 — sign a permit off-chain, submit it with the action in one transaction. Better UX, saves a round-trip.
+console.log(formatUnits(balance, 18));
 
-### 2. Use `realtime_sendRawTransaction` for all writes
-Instant receipts via Realtime API. No polling.
-
-### 3. Always use 18 decimals
-`1 USDm = 1e18 wei`. Use `parseUnits('1', 18)` or `parseEther('1')` — they're equivalent.
-
-### 4. Check allowance before approve
-Avoid unnecessary approves — check existing allowance first. Some protocols (Permit2) use a single infinite approve.
-
-## Core Operations
-
-### Check Balance
-
-```typescript
-import { formatUnits } from 'viem'
-
-const USDM = '0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7'
-
-const balance = await publicClient.readContract({
+const hash = await walletClient.writeContract({
+  account,
   address: USDM,
   abi: erc20Abi,
-  functionName: 'balanceOf',
-  args: [userAddress]
-})
-
-console.log(`${formatUnits(balance, 18)} USDm`)
+  functionName: "approve",
+  args: [spender, parseUnits("100", 18)],
+});
 ```
 
-### Transfer
+Use OpenZeppelin `SafeERC20` in Solidity integrations so tokens with unusual
+return behavior do not silently bypass checks:
 
-```typescript
-await walletClient.writeContract({
-  address: USDM,
-  abi: erc20Abi,
-  functionName: 'transfer',
-  args: [recipientAddress, parseUnits('10', 18)] // 10 USDm
-})
+```solidity
+using SafeERC20 for IERC20;
+
+IERC20 public constant USDM =
+    IERC20(0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7);
+
+function pay(uint256 amount) external {
+    USDM.safeTransferFrom(msg.sender, address(this), amount);
+}
 ```
 
-### Approve
+Check the exact spender, amount, existing allowance, and approval-reset policy.
+An unlimited approval is a material grant, not a default optimization.
 
-```typescript
-await walletClient.writeContract({
-  address: USDM,
-  abi: erc20Abi,
-  functionName: 'approve',
-  args: [spenderAddress, parseUnits('100', 18)]
-})
-```
+## ERC-2612 permit
 
-### Check Allowance
+The canonical mainnet and testnet deployments expose EIP-2612 `permit`,
+`nonces`, and `DOMAIN_SEPARATOR`. Their current EIP-712 domain uses name
+`MegaUSD` and version `1`; verify the domain against the target contract before
+signing rather than assuming every token called USDM uses it.
 
-```typescript
-const allowance = await publicClient.readContract({
-  address: USDM,
-  abi: erc20Abi,
-  functionName: 'allowance',
-  args: [ownerAddress, spenderAddress]
-})
-```
+```ts
+import { parseSignature, parseUnits } from "viem";
 
-## ERC-2612 Permit (Gasless Approvals)
-
-USDm supports `permit()` — sign an off-chain message to authorize spending without a separate approve transaction.
-
-### Sign a Permit
-
-```typescript
-import { parseUnits } from 'viem'
-
-const USDM = '0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7'
-
-// Get current nonce
+const value = parseUnits("100", 18);
 const nonce = await publicClient.readContract({
   address: USDM,
   abi: [{
-    name: 'nonces',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [{ name: 'owner', type: 'address' }],
-    outputs: [{ type: 'uint256' }]
+    type: "function",
+    name: "nonces",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ type: "uint256" }],
   }],
-  functionName: 'nonces',
-  args: [walletClient.account.address]
-})
+  functionName: "nonces",
+  args: [owner],
+});
 
-// Get domain separator
-const domainSeparator = await publicClient.readContract({
-  address: USDM,
-  abi: [{
-    name: 'DOMAIN_SEPARATOR',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'bytes32' }]
-  }],
-  functionName: 'DOMAIN_SEPARATOR'
-})
-
-const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600) // 1 hour
-
-// Sign EIP-712 permit
+const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
 const signature = await walletClient.signTypedData({
+  account,
   domain: {
-    name: 'MegaUSD',
-    version: '1',
+    name: "MegaUSD",
+    version: "1",
     chainId: 4326,
-    verifyingContract: USDM
+    verifyingContract: USDM,
   },
   types: {
     Permit: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
-  },
-  primaryType: 'Permit',
-  message: {
-    owner: walletClient.account.address,
-    spender: spenderAddress,
-    value: parseUnits('100', 18),
-    nonce,
-    deadline
-  }
-})
-```
-
-### Submit Permit
-
-```typescript
-// Decode signature
-const { r, s, v } = parseSignature(signature)
-
-// Call permit on the token
-await walletClient.writeContract({
-  address: USDM,
-  abi: [{
-    name: 'permit',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' },
-      { name: 'v', type: 'uint8' },
-      { name: 'r', type: 'bytes32' },
-      { name: 's', type: 'bytes32' }
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "deadline", type: "uint256" },
     ],
-    outputs: []
-  }],
-  functionName: 'permit',
-  args: [ownerAddress, spenderAddress, parseUnits('100', 18), deadline, v, r, s]
-})
+  },
+  primaryType: "Permit",
+  message: { owner, spender, value, nonce, deadline },
+});
+
+const { v, r, s } = parseSignature(signature);
 ```
 
-### Permit + Action in One Transaction (Contract Pattern)
+The consumer contract can call `permit` and perform the authorized action in
+one transaction:
 
 ```solidity
-// Example: approve + complete a USDm-backed application action in a single call
-function registerWithPermit(
-    string calldata label,
-    address owner,
-    uint256 numYears,
+function payWithPermit(
+    uint256 amount,
     uint256 deadline,
-    uint8 v, bytes32 r, bytes32 s
-) external returns (uint256) {
-    IERC20Permit(USDM).permit(msg.sender, address(this), type(uint256).max, deadline, v, r, s);
-    return _register(label, owner, numYears);
+    uint8 v,
+    bytes32 r,
+    bytes32 s
+) external {
+    IERC20Permit(address(USDM)).permit(
+        msg.sender, address(this), amount, deadline, v, r, s
+    );
+    USDM.safeTransferFrom(msg.sender, address(this), amount);
 }
 ```
 
-## Integration Patterns
+This removes a separate approval transaction; it does not make the downstream
+action gasless. Gas sponsorship requires a separately configured wallet or
+paymaster flow.
 
-### Pattern 1: Accept USDm Payments in a Contract
+## MegaETH integration notes
 
-```solidity
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-address constant USDM = 0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7;
-
-function pay(uint256 amount) external {
-    // Requires prior approval or use permit pattern
-    IERC20(USDM).transferFrom(msg.sender, address(this), amount);
-    // ... process payment
-}
-```
-
-### Pattern 2: Check USDm Balance in Frontend (wagmi)
-
-```typescript
-import { useReadContract } from 'wagmi'
-import { erc20Abi, formatUnits } from 'viem'
-
-const USDM = '0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7'
-
-function UsdmBalance({ address }: { address: `0x${string}` }) {
-  const { data: balance } = useReadContract({
-    address: USDM,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: [address]
-  })
-
-  return <span>{balance ? formatUnits(balance, 18) : '0'} USDm</span>
-}
-```
-
-## Where USDm Shows Up In The Stack
-
-| Area | Why it matters |
-|------|----------------|
-| Application payments | Default stable settlement asset for product/payment flows |
-| Wallet workflows | Common spend and allowance token in user-facing actions |
-| Gas abstraction | Useful anchor asset for paymaster and fee abstraction discussions |
-| Ecosystem integrations | Frequently referenced in canonical MegaETH examples and products |
-
-## Other Stablecoins on MegaETH
-
-USDm is the native stablecoin, but others are first-class citizens:
-
-| Token | Description |
-|-------|-------------|
-| **USDT0** | Canonical USDT representation on MegaETH |
-| **cUSD** | Circle's bridged USDC |
-
-These maintain deep liquidity, oracle coverage, and DEX routing alongside USDm.
-
-## MegaETH-Specific Notes
-
-- **Instant receipts:** Use `realtime_sendRawTransaction` for all USDm transfers/approves
-- **Gas costs:** SSTORE for allowance updates follows MegaEVM pricing (first-time approve = new slot = expensive; subsequent = cheap)
-- **No ETH needed for approve:** If using a paymaster, users can approve USDm without holding ETH
-- **18 decimals:** Same as ETH wei — `parseEther` and `parseUnits('x', 18)` are interchangeable
+- `realtime_sendRawTransaction` is preferred when the caller needs an execution
+  receipt quickly, but standard transaction submission remains valid.
+- A new allowance slot is subject to current MegaEVM storage-gas pricing. Use
+  target-network estimation; do not assume a fixed first-write cost.
+- `parseEther(value)` and `parseUnits(value, 18)` produce the same base-unit
+  scale, but `parseUnits` communicates token intent more clearly.
+- Other stablecoins must be resolved independently. For example, CUSD in the
+  MegaETH token list is Cap USD, not Circle USDC. Token-list inclusion alone
+  does not prove liquidity depth, oracle coverage, or suitability as collateral.

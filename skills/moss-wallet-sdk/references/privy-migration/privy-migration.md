@@ -49,7 +49,7 @@ if (status !== 'connected' || !address) {
 const mossWalletAddress = address; // destination for the migration
 ```
 
-See [`mega.connect()`](methods/connect.md) and [`mega.initialise()`](methods/initialise.md).
+See [`mega.connect()`](../methods-reference.md#megaconnect) and [`mega.initialise()`](../methods-reference.md#megainitialise).
 
 ## Send assets from the Privy wallet
 
@@ -99,6 +99,7 @@ type MigrationTransfer = {
   from: string;            // Privy address
   to: string;              // MOSS address
   contractAddress?: string;
+  tokenId?: string;        // required for ERC-721 / ERC-1155
   amount?: string;
   status: TransferStatus;
   txHash?: string;
@@ -115,9 +116,9 @@ Do not mark the migration complete until destination receipts are confirmed.
 
 ## Related
 
-- [`mega.connect()`](methods/connect.md) — create or connect the destination MOSS account.
-- [MOSS Authentication](authentication.md) — sign the user into MOSS after migration.
-- [Best Practices](best-practices.md) — production hardening for the MOSS side.
+- [`mega.connect()`](../methods-reference.md#megaconnect) — create or connect the destination MOSS account.
+- [MOSS Authentication](../server-verify/authentication.md) — sign the user into MOSS after migration.
+- [Best Practices](../best-practices.md) — production hardening for the MOSS side.
 
 ## Privy references
 

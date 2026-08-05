@@ -28,9 +28,13 @@ addresses for the selected network. The built-in defaults use:
 Use a full permission file when the user needs custom expiry or no-spend
 permissions. Repeat `--spend-limit` for multi-row spend.
 For fee capacity with the shorthand flow, use `--fee-token <symbol>` and
-optional `--fee-limit <amount>` instead of a full file. The CLI merges that
-human token amount into `permissions.spend`; the wallet UI user still selects
-the grant Gas Token on the approval screen.
+optional `--fee-limit <amount>` instead of a full file. The CLI sends those
+fields as explicit delegated-key fee metadata and adds or merges matching fee
+spend capacity into `permissions.spend`. When `--fee-limit` is omitted, the CLI
+uses an approximate `$1` buffer in the selected fee token. The wallet UI user
+may still select a Gas Token for the approval transaction itself. Supported
+shorthand fee-token symbols are `ETH`, `USDM`, `USDT0`, and `MEGA` on mainnet,
+and `ETH`, `USDM`, and `TST` on testnet.
 
 ## File Shape
 
@@ -69,10 +73,9 @@ the inner `permissions` object:
 ## Field Rules
 
 - `expiry` is required and must be a future Unix timestamp in seconds.
-- `feeToken` is optional shorthand for fee spend capacity. `feeToken.limit` is
-  a human decimal in `feeToken.symbol`, defaulting to `1` when omitted. The CLI
-  converts it into ordinary `permissions.spend` before authorization and does
-  not send it onward as durable permission metadata.
+- `feeToken` is required delegated-key relay-fee metadata. `feeToken.limit` is a
+  human decimal in `feeToken.symbol`. If omitted, the CLI uses an approximate
+  `$1` fee-token buffer.
 - `permissions` is required.
 - `permissions.spend` is required and may be `[]` for no explicit spend.
 - Spend `limit` values are integer base units, not human decimals. For an
@@ -80,12 +83,9 @@ the inner `permissions` object:
 - Spend `period` must be `minute`, `hour`, `day`, `week`, `month`, or `year`.
 - Use `0x0000000000000000000000000000000000000000` or omit `token` for native
   ETH spend. Use a 20-byte token address for ERC20 spend.
-- The wallet UI handles grant Gas Token selection during approval. Inspect the
-  returned key with `mega moss permissions --json` before relying on fee spend
-  capacity for later writes.
-- Relay fees are paid from ordinary spend capacity. During approval, the wallet
-  UI may add an additional roughly `$5` spend row for the user-selected Gas
-  Token if no matching spend row is already present.
+- The wallet UI handles grant Gas Token selection for the approval transaction.
+  Inspect the returned key with `mega moss permissions --json` before relying on
+  fee metadata for later writes.
 - `permissions.calls` is required and must contain at least one entry. Do not
   omit it or use `permissions.calls: []`; both produce unusable or rejected
   write keys.

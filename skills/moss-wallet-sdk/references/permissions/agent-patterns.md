@@ -6,7 +6,7 @@ description: Build agent-driven MOSS integrations with explicit permission polic
 
 # AI Agent Flows for MOSS Wallet
 
-Assumes familiarity with the [Quickstart](quickstart.md) and core SDK methods.
+Assumes familiarity with the [Quickstart](../quickstart.md) and core SDK methods.
 
 ## MOSS Model
 
@@ -37,7 +37,7 @@ Turn user intent into concrete constraints, then compile those constraints into 
 
 ## API Shape: Permissions-First Execution
 
-Full method signatures, types, and return contracts: [Methods Reference](methods.md).
+Full method signatures, types, and return contracts: [Methods Reference](../methods-reference.md).
 
 ```typescript
 await mega.grantPermissions({
@@ -190,4 +190,4 @@ const result = await mega.callContract({
 if (result.status === 'error') await mega.revokePermissions();
 ```
 
-Before shipping delegated permissions to production, review [Best Practices](best-practices.md) for permission scoping defaults, expiry windows, and revocation paths.
+Before shipping delegated permissions to production, review [Best Practices](../best-practices.md) for permission scoping defaults, expiry windows, and revocation paths.

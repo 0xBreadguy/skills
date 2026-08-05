@@ -3,12 +3,12 @@
 Use this only for `mega moss` execution guidance. For dApp developer
 integration, read `megaeth-developer-skills/references/protocols/sir.md`.
 
-## Source Status
+## Sources
 
-This file adapts the SIR Trading skill from
-`https://github.com/SIR-trading/sir-trading-skill/blob/master/sir-trading.md`
-into scoped MOSS CLI execution patterns. Verify SIR addresses, ABIs, and quote
-behavior against current SIR sources before value-bearing execution.
+Re-check `https://app.sir.trading/build-data.json`, the
+[SIR trading skill](https://github.com/SIR-trading/sir-trading-skill), and the
+target's verified deployed ABI before execution. The repository source can lag
+the MegaETH deployment's six-argument `mint` interface.
 
 ## Mainnet Constants
 
@@ -121,12 +121,13 @@ SIR source material. Do not initialize.
 
 ## Mint APE Or TEA With ERC20 Collateral
 
-Set `IS_APE=true` for APE and `IS_APE=false` for TEA. Quote first and set the
-minimum output or collateral minimum from the verified quote path.
+Set `IS_APE=true` for APE and `IS_APE=false` for TEA. A direct collateral
+deposit must pass `collateralToDepositMin = 0`; this field is a branch signal,
+not a minimum APE/TEA output.
 
 ```bash
 IS_APE=true
-MIN_COLLATERAL_OR_OUTPUT=$QUOTE_DERIVED_MIN
+COLLATERAL_TO_DEPOSIT_MIN=0
 PORTION_LOCK_TIME=0
 INPUT_TOKEN=$COLLATERAL_TOKEN
 ```
@@ -150,7 +151,7 @@ MINT=$(cast calldata \
   "$IS_APE" \
   "($DEBT_TOKEN,$COLLATERAL_TOKEN,$LEVERAGE_TIER)" \
   "$AMOUNT_IN" \
-  "$MIN_COLLATERAL_OR_OUTPUT" \
+  "$COLLATERAL_TO_DEPOSIT_MIN" \
   "$DEADLINE" \
   "$PORTION_LOCK_TIME")
 ```
@@ -161,9 +162,10 @@ near the user-approved amount and revoke the key after the workflow.
 ## Mint With Debt Token
 
 When funding with debt token, quote with
-`Assistant.quoteMintWithDebtToken(isAPE, vaultParams, amountDebtToken)`.
-The Vault swaps through Kumbaya. Use the quote result to set the collateral
-minimum.
+`Assistant.quoteMintWithDebtToken(isAPE, vaultParams, amountDebtToken)`, which
+returns `(amountTokens, amountCollateral, amountCollateralIdeal)`. Apply the
+user's slippage policy to `amountCollateral` and pass that nonzero result as
+`collateralToDepositMin`. A value of zero would select the wrong input branch.
 
 ```bash
 INPUT_TOKEN=$DEBT_TOKEN
@@ -180,13 +182,17 @@ Encode the same `mint` signature with `amountToDeposit = amountDebtToken` and
 
 ## Native ETH Mint
 
-The source examples use native value when WETH is the relevant debt or
-collateral token, passing `amountToDeposit = 0`. Verify the active SIR path
-before using native value.
+Native value uses `amountToDeposit = 0`. If WETH is the collateral, set
+`collateralToDepositMin = 0`. If WETH is the debt token and a swap is required,
+set a fresh, nonzero collateral minimum from `quoteMintWithDebtToken`. Verify
+the active SIR path before using native value.
 
 ```bash
 AMOUNT_VALUE=100000000000000000
 AMOUNT_TO_DEPOSIT=0
+# Set to 0 for native collateral, or a nonzero quote-derived minimum for
+# native debt-token funding.
+COLLATERAL_TO_DEPOSIT_MIN=0
 
 mega moss create-key \
   --allow-call "$VAULT:mint(bool,(address,address,int8),uint256,uint144,uint40,uint8)" \
@@ -198,7 +204,7 @@ MINT=$(cast calldata \
   "$IS_APE" \
   "($DEBT_TOKEN,$COLLATERAL_TOKEN,$LEVERAGE_TIER)" \
   "$AMOUNT_TO_DEPOSIT" \
-  "$MIN_COLLATERAL_OR_OUTPUT" \
+  "$COLLATERAL_TO_DEPOSIT_MIN" \
   "$DEADLINE" \
   "$PORTION_LOCK_TIME")
 

@@ -16,47 +16,47 @@ Typical lifecycle: `initialise → connect → [transfer / callContract / signMe
 
 | Method | Purpose |
 | --- | --- |
-| [`mega.initialise(config)`](methods/initialise.md) | Create the wallet iframe and bridge, wait for ready. |
-| [`mega.connect()`](methods/connect.md) | Prompt the user to authenticate; resolves with connection status. |
-| [`mega.disconnect()`](methods/disconnect.md) | Terminate the active wallet session. |
-| [`mega.status()`](methods/status.md) | Read current connection state without prompting. |
-| [`mega.open()`](methods/open.md) | Show the wallet UI overlay without an explicit action. |
-| [`mega.events.onStatusChange(cb)`](methods/on-status-change.md) | Subscribe to connection state changes. |
+| [`mega.initialise(config)`](./methods-reference.md#megainitialise) | Create the wallet iframe and bridge, wait for ready. |
+| [`mega.connect()`](./methods-reference.md#megaconnect) | Prompt the user to authenticate; resolves with connection status. |
+| [`mega.disconnect()`](./methods-reference.md#megadisconnect) | Terminate the active wallet session. |
+| [`mega.status()`](./methods-reference.md#megastatus) | Read current connection state without prompting. |
+| [`mega.open()`](./methods-reference.md#megaopen) | Show the wallet UI overlay without an explicit action. |
+| [`mega.events.onStatusChange(cb)`](./methods-reference.md#megaeventsonstatuschange) | Subscribe to connection state changes. |
 
 ## Transactions
 
 | Method | Purpose |
 | --- | --- |
-| [`mega.transfer(request)`](methods/transfer.md) | Send native or ERC-20/721/1155 transfers. |
-| [`mega.callContract(request)`](methods/call-contract.md) | Execute contract write functions, single or batch. |
-| [`mega.getFromContract(request)`](methods/get-from-contract.md) | Read contract state. |
+| [`mega.transfer(request)`](./methods-reference.md#megatransfer) | Send native or ERC-20/721/1155 transfers. |
+| [`mega.callContract(request)`](./methods-reference.md#megacallcontract) | Execute contract write functions, single or batch. |
+| [`mega.getFromContract(request)`](./methods-reference.md#megagetfromcontract) | Read contract state. |
 
 ## Signing
 
 | Method | Purpose |
 | --- | --- |
-| [`mega.signMessage(message)`](methods/sign-message.md) | Sign an arbitrary text payload. |
-| [`mega.signData(request)`](methods/sign-data.md) | Sign structured (EIP-712) data. |
-| [`mega.authenticate()`](methods/authenticate.md) | Request a MOSS-issued JWT for backend session exchange. |
+| [`mega.signMessage(message)`](./methods-reference.md#megasignmessage) | Sign an arbitrary text payload. |
+| [`mega.signData(request)`](./methods-reference.md#megasigndata) | Sign structured (EIP-712) data. |
+| [`mega.authenticate()`](./methods-reference.md#megaauthenticate) | Request a MOSS-issued JWT for backend session exchange. |
 
 ## Smart Approvals (Policy Engine)
 
 | Method | Purpose |
 | --- | --- |
-| [`mega.grantPermissions(request)`](methods/grant-permissions.md) | Grant scoped delegated permissions for silent execution. |
-| [`mega.revokePermissions()`](methods/revoke-permissions.md) | Revoke all active delegated permissions. |
-| [`mega.getPermissions(address?)`](methods/get-permissions.md) | Read active permission grants. |
+| [`mega.grantPermissions(request)`](./methods-reference.md#megagrantpermissions) | Grant scoped delegated permissions for silent execution. |
+| [`mega.revokePermissions()`](./methods-reference.md#megarevokepermissions) | Revoke all active delegated permissions. |
+| [`mega.getPermissions(address?)`](./methods-reference.md#megagetpermissions) | Read active permission grants. |
 
-For the conceptual model, see [Smart Approvals (Policy Engine)](core-sdk/permissions.md).
+For the conceptual model, see [Smart Approvals (Policy Engine)](./permissions.md).
 
 ## Wallet
 
 | Method | Purpose |
 | --- | --- |
-| [`mega.deposit()`](methods/deposit.md) | Open the built-in deposit/funding UI. |
-| [`mega.balances(request)`](methods/balances.md) | Fetch wallet token balances. |
-| [`mega.send(request)`](methods/send.md) | Open the wallet-managed send flow. |
-| [`mega.swap(request)`](methods/swap.md) | Open the wallet-managed swap flow. |
+| [`mega.deposit()`](./methods-reference.md#megadeposit) | Open the built-in deposit/funding UI. |
+| [`mega.balances(request)`](./methods-reference.md#megabalances) | Fetch wallet token balances. |
+| [`mega.send(request)`](./methods-reference.md#megasend) | Open the wallet-managed send flow. |
+| [`mega.swap(request)`](./methods-reference.md#megaswap) | Open the wallet-managed swap flow. |
 
 ## Shared Types
 
@@ -89,11 +89,11 @@ Per-method response shapes (e.g., `SignMessageResponse`, `OwnedTokenResponse`, `
 
 ## Cross-Cutting Guides
 
-- [SDK installation](core-sdk/installation.md) — package install, import surface, what you get.
-- [Connection lifecycle](core-sdk/lifecycle.md) — the recommended setup → connect → disconnect flow.
-- [Smart Approvals deep-guide](core-sdk/permissions.md) — when to grant, how to scope, revocation patterns.
-- [Security model](core-sdk/security.md) — iframe model, trust boundaries, what stays server-side.
-- [Troubleshooting](core-sdk/error-handling.md) — common errors and triage steps.
+- [SDK installation](./quickstart.md) — package install, import surface, what you get.
+- [Connection lifecycle](./lifecycle.md) — the recommended setup → connect → disconnect flow.
+- [Smart Approvals deep-guide](./permissions.md) — when to grant, how to scope, revocation patterns.
+- [Security model](./security-model.md) — iframe model, trust boundaries, what stays server-side.
+- [Troubleshooting](./error-handling.md) — common errors and triage steps.
 
 
 ---
@@ -104,7 +104,7 @@ Per-method response shapes (e.g., `SignMessageResponse`, `OwnedTokenResponse`, `
 
 Request an auth JWT from MOSS so your app can verify account identity without implementing a direct SIWE prompt flow. The user sees a single MOSS-led auth prompt; the resulting JWT goes to your backend for verification.
 
-**Use this when** you want login/identity and want MOSS to own the challenge UX — your backend just verifies a JWT. If instead you need a raw signature over your own message (EIP-191, custom nonce, attestation), use [`signMessage()`](sign-message.md) and verify it yourself with [Server Verify](../server-verify.md). For full integration patterns, see [MOSS Authentication](../authentication.md).
+**Use this when** you want login/identity and want MOSS to own the challenge UX — your backend just verifies a JWT. If instead you need a raw signature over your own message (EIP-191, custom nonce, attestation), use [`signMessage()`](./methods-reference.md#megasignmessage) and verify it yourself with [Server Verify](./server-verify.md). For full integration patterns, see [MOSS Authentication](./server-verify/authentication.md).
 
 ## Signature
 
@@ -201,7 +201,7 @@ type OwnedTokenResponse = {
 
 - Use `displayBalance` for UI, `balance` for programmatic logic.
 - Market data fields (`usdPrice`, `percentChange`, `marketCap`) are optional enrichment — not guaranteed for every token.
-- Requires an active connection. If the wallet just initialised, run [`status()`](status.md) first to confirm `connected`.
+- Requires an active connection. If the wallet just initialised, run [`status()`](./methods-reference.md#megastatus) first to confirm `connected`.
 
 
 ---
@@ -210,7 +210,7 @@ type OwnedTokenResponse = {
 
 # mega.callContract()
 
-Execute any contract write function through the wallet. Supports single calls or a batch array. With `silent: true` and a matching [Smart Approvals](../core-sdk/permissions.md) grant, calls skip the approval UI and execute directly.
+Execute any contract write function through the wallet. Supports single calls or a batch array. With `silent: true` and a matching [Smart Approvals](./permissions.md) grant, calls skip the approval UI and execute directly.
 
 ## Signature
 
@@ -282,12 +282,12 @@ const tx = await mega.callContract([
 
 ## Response
 
-Shared [`TransactionResult`](transfer.md#response) shape. For batch calls, `result.receipts` is populated instead of `result.receipt`.
+Shared [`TransactionResult`](./methods-reference.md#megatransfer) shape. For batch calls, `result.receipts` is populated instead of `result.receipt`.
 
 ## Notes
 
-- `silent: true` only works after a successful [`grantPermissions()`](grant-permissions.md) covering the exact `{ to, signature }` pair. If the grant is missing or expired, the call resolves with `status: 'error'`.
-- For read calls (no transaction), use [`getFromContract()`](get-from-contract.md).
+- `silent: true` only works after a successful [`grantPermissions()`](./methods-reference.md#megagrantpermissions) covering the exact `{ to, signature }` pair. If the grant is missing or expired, the call resolves with `status: 'error'`.
+- For read calls (no transaction), use [`getFromContract()`](./methods-reference.md#megagetfromcontract).
 - Types are intentionally broad — create typed wrappers in your app for contracts you call repeatedly.
 
 
@@ -332,8 +332,8 @@ type ConnectionStatus = {
 ## Notes
 
 - Trigger from a deliberate user action (button click), not on page load.
-- For account onboarding copy, prefer "Creating your account" / "Restoring account" — see [Best Practices](../best-practices.md).
-- After connect, subscribe to [`events.onStatusChange`](on-status-change.md) so your UI tracks disconnects that happen outside your app.
+- For account onboarding copy, prefer "Creating your account" / "Restoring account" — see [Best Practices](./best-practices.md).
+- After connect, subscribe to [`events.onStatusChange`](./methods-reference.md#megaeventsonstatuschange) so your UI tracks disconnects that happen outside your app.
 
 
 ---
@@ -344,7 +344,7 @@ type ConnectionStatus = {
 
 Open the built-in wallet funding UI. The user adds funds inside the MOSS wallet surface — no custom funding flow to build or maintain.
 
-For integration patterns, see [Deposit Flows (Unifold)](../deposit-flows.md).
+For integration patterns, see [Deposit Flows (Unifold)](./paymaster/deposit-flows.md).
 
 ## Signature
 
@@ -366,11 +366,11 @@ if (state.status === 'connected') {
 
 ## Response
 
-`Promise<void>` — resolves once the wallet deposit UI is opened. No structured success or transaction payload comes back through this method; observe wallet state through [`events.onStatusChange`](on-status-change.md) and refresh [`balances()`](balances.md) after the user completes funding.
+`Promise<void>` — resolves once the wallet deposit UI is opened. No structured success or transaction payload comes back through this method; observe wallet state through [`events.onStatusChange`](./methods-reference.md#megaeventsonstatuschange) and refresh [`balances()`](./methods-reference.md#megabalances) after the user completes funding.
 
 ## Notes
 
-Requires a connected wallet. If status is `disconnected`, call [`connect()`](connect.md) first.
+Requires a connected wallet. If status is `disconnected`, call [`connect()`](./methods-reference.md#megaconnect) first.
 
 
 ---
@@ -411,7 +411,7 @@ type ConnectionStatus = {
 
 ## Notes
 
-Use `disconnect()` only when the product clearly intends to terminate the session — typically as part of an explicit "Sign out" affordance. The wallet may also be disconnected externally; subscribe to [`events.onStatusChange`](on-status-change.md) to stay in sync.
+Use `disconnect()` only when the product clearly intends to terminate the session — typically as part of an explicit "Sign out" affordance. The wallet may also be disconnected externally; subscribe to [`events.onStatusChange`](./methods-reference.md#megaeventsonstatuschange) to stay in sync.
 
 
 ---
@@ -458,7 +458,7 @@ Decoded value of type `T` (the generic you pass).
 
 ## Notes
 
-For write calls, use [`callContract()`](call-contract.md). For known wallet token balances, [`balances()`](balances.md) is faster than calling `balanceOf` per token.
+For write calls, use [`callContract()`](./methods-reference.md#megacallcontract). For known wallet token balances, [`balances()`](./methods-reference.md#megabalances) is faster than calling `balanceOf` per token.
 
 
 ---
@@ -467,12 +467,12 @@ For write calls, use [`callContract()`](call-contract.md). For known wallet toke
 
 # mega.getPermissions()
 
-Read active permission grants. Use this to check whether a grant is still valid before triggering [`callContract()`](call-contract.md) with `silent: true`.
+Read active permission grants. Use this to check whether a grant is still valid before triggering [`callContract()`](./methods-reference.md#megacallcontract) with `silent: true`.
 
 The optional `address` argument switches between two modes:
 
 - **No argument** — returns the grants for the **connected session's own subject** (the common case).
-- **With an `address`** — returns the grants delegated to that **specific external address** (the `externalAddress` bound during [`grantPermissions()`](grant-permissions.md)).
+- **With an `address`** — returns the grants delegated to that **specific external address** (the `externalAddress` bound during [`grantPermissions()`](./methods-reference.md#megagrantpermissions)).
 
 ## Signature
 
@@ -518,7 +518,7 @@ The outer response or inner `permissions` may be `null`/`undefined`. Always null
 
 - Compare `permissions.expiry` against `Math.floor(Date.now() / 1000)` to know if the grant is still valid.
 - Inspect `permissions.spend` against your app's tracked consumption to know how much budget is left.
-- Re-grant via [`grantPermissions()`](grant-permissions.md) when expired or exhausted.
+- Re-grant via [`grantPermissions()`](./methods-reference.md#megagrantpermissions) when expired or exhausted.
 
 
 ---
@@ -527,7 +527,7 @@ The outer response or inner `permissions` may be `null`/`undefined`. Always null
 
 # mega.grantPermissions()
 
-Grant scoped delegated permissions (spend caps + call rules + expiry) for session-style execution. After a grant, [`callContract()`](call-contract.md) with `silent: true` can execute matching actions without prompting. See [Smart Approvals (Policy Engine)](../core-sdk/permissions.md) for the conceptual deep-dive.
+Grant scoped delegated permissions (spend caps + call rules + expiry) for session-style execution. After a grant, [`callContract()`](./methods-reference.md#megacallcontract) with `silent: true` can execute matching actions without prompting. See [Smart Approvals (Policy Engine)](./permissions.md) for the conceptual deep-dive.
 
 ## Signature
 
@@ -557,7 +557,7 @@ interface Permission {
   permissions: {
     calls: { to: string; signature: string }[];  // Allowed contract+function pairs
     spend: {
-      limit: bigint;               // Spend cap in WEI, e.g. 5000000000000000n
+      limit: bigint;               // Spend cap in base units, e.g. 5000000000000000n wei
       period: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
       token?: `0x${string}`;
     }[];
@@ -566,7 +566,7 @@ interface Permission {
 ```
 
 {% hint style="warning" %}
-**`spend[].limit` is a `bigint` in wei**, e.g. `5000000000000000n` = 0.005 ETH. Don't pass a decimal string here.
+**`spend[].limit` is a `bigint` in integer base units**. For native ETH, that means wei, e.g. `5000000000000000n` = 0.005 ETH. For ERC-20 tokens, use the token's decimals, e.g. `parseUnits('25', 18)` for 25 units of an 18-decimal token. Don't pass a decimal string here.
 {% endhint %}
 
 {% hint style="info" %}
@@ -578,16 +578,20 @@ The `permissions` field is doubly nested by design: `request.permissions` (the `
 ## Example
 
 ```typescript
+import { parseEther } from 'viem';
+
+const vault = '0xVaultContractAddress';
 const expiry = Math.floor(Date.now() / 1000) + 60 * 30;
 
 await mega.grantPermissions({
   permissions: {
     expiry,
     permissions: {
-      calls: [{ to: '0xContractAddress', signature: 'mint(uint256)' }],
+      calls: [{ to: vault, signature: 'deposit()' }],
       spend: [{
-        limit: 1000000000000000n,
+        limit: parseEther('0.001'),
         period: 'day',
+        // token omitted for native ETH
       }],
     },
   },
@@ -607,11 +611,13 @@ type GrantPermissionsResponse = {
 
 Each `calls[]` entry should include both `to` (contract address) and `signature` (function signature, e.g., `'mint(uint256)'`). `to`-only or `signature`-only matching is not the documented integration model.
 
+`calls[]` and `spend[]` are separate gates. A spend cap alone does not authorize a silent contract write; the matching call scope must also be present.
+
 ## Notes
 
 - **Use least-privilege defaults:** narrow calls, low spend caps, short expiry (24h max for active sessions, 7 days for background agents).
-- Expose a revoke control in your UI ([`revokePermissions()`](revoke-permissions.md)). Users can also revoke from wallet settings.
-- See [Best Practices](../best-practices.md) for production permission patterns.
+- Expose a revoke control in your UI ([`revokePermissions()`](./methods-reference.md#megarevokepermissions)). Users can also revoke from wallet settings.
+- See [Best Practices](./best-practices.md) for production permission patterns.
 
 
 ---
@@ -635,7 +641,7 @@ Create the wallet iframe, establish the Penpal bridge, and wait for the wallet h
 | `devMode` | `boolean` | optional | Switches wallet host from `account.megaeth.com` to `localhost:4000`. |
 | `debug` | `boolean` | optional | Enables Penpal debug logging. |
 | `sponsorUrl` | `string` | optional | Sponsorship approval endpoint URL. |
-| `sponsorMode` | `'everything'` / `'app-only'` / `'explicit'` | optional | Sponsorship trigger mode. Default `app-only`. See [Paymaster Guide](../paymaster-setup.md). |
+| `sponsorMode` | `'everything'` / `'app-only'` / `'explicit'` | optional | Sponsorship trigger mode. Default `app-only`. See [Paymaster Guide](./paymaster/paymaster-setup.md). |
 | `sponsorToken` | `'native'` / `'usdm'` | optional | Sponsor fee token. Default `native`. |
 
 ## Example
@@ -665,7 +671,7 @@ type ConnectionStatus = {
 };
 ```
 
-The returned status reflects existing wallet state — initialisation guarantees bridge readiness, not user approval. Use [`connect()`](connect.md) to prompt the user.
+The returned status reflects existing wallet state — initialisation guarantees bridge readiness, not user approval. Use [`connect()`](./methods-reference.md#megaconnect) to prompt the user.
 
 ## Notes
 
@@ -710,7 +716,7 @@ mega.events.onStatusChange((status) => {
 ## Notes
 
 - The callback is stored as a **single handler**, not a multi-listener event bus. Subscribe once and fan out through your app store if multiple components need the value.
-- Subscribing replaces any previous handler — register early (e.g., immediately after [`mega.initialise()`](initialise.md)) before other code might want to overwrite it.
+- Subscribing replaces any previous handler — register early (e.g., immediately after [`mega.initialise()`](./methods-reference.md#megainitialise)) before other code might want to overwrite it.
 
 
 ---
@@ -745,7 +751,7 @@ if (state.status !== 'connected') {
 
 ## Notes
 
-If the user isn't connected, `open()` is a natural prompt path that doesn't force a specific action. For an explicit auth prompt with a result, use [`connect()`](connect.md) instead.
+If the user isn't connected, `open()` is a natural prompt path that doesn't force a specific action. For an explicit auth prompt with a result, use [`connect()`](./methods-reference.md#megaconnect) instead.
 
 
 ---
@@ -754,7 +760,7 @@ If the user isn't connected, `open()` is a natural prompt path that doesn't forc
 
 # mega.revokePermissions()
 
-Immediately revoke all active delegated permissions from the app side. After revocation, [`callContract()`](call-contract.md) with `silent: true` will fall back to the wallet approval UI.
+Immediately revoke all active delegated permissions from the app side. After revocation, [`callContract()`](./methods-reference.md#megacallcontract) with `silent: true` will fall back to the wallet approval UI.
 
 ## Signature
 
@@ -780,7 +786,7 @@ await mega.revokePermissions();
 
 App-triggered `revokePermissions()` is one revocation path. Users can also revoke permissions **per app** from wallet/account settings, independent of any app trigger. Don't describe revocation as global-only or all-or-nothing in your UI copy.
 
-For reading current permissions before revoking, use [`getPermissions()`](get-permissions.md).
+For reading current permissions before revoking, use [`getPermissions()`](./methods-reference.md#megagetpermissions).
 
 
 ---
@@ -791,7 +797,7 @@ For reading current permissions before revoking, use [`getPermissions()`](get-pe
 
 Open the wallet-managed send flow with a token selector and destination input. The wallet handles the full UX — amount entry, token selection, recipient confirmation, and execution.
 
-For direct programmatic transfers from your app, use [`transfer()`](transfer.md) instead.
+For direct programmatic transfers from your app, use [`transfer()`](./methods-reference.md#megatransfer) instead.
 
 ## Signature
 
@@ -819,7 +825,7 @@ if (result.status === 'approved') {
 
 ## Response
 
-Shared [`TransactionResult`](transfer.md#response) shape.
+Shared [`TransactionResult`](./methods-reference.md#megatransfer) shape.
 
 ## Notes
 
@@ -832,7 +838,7 @@ Requires an active connected wallet. Reconnect first if status is `disconnected`
 
 # mega.signData()
 
-Sign structured data through the wallet approval surface — typically EIP-712 typed payloads for permits, structured approvals, or attestations. For plain string signing use [`signMessage()`](sign-message.md).
+Sign structured data through the wallet approval surface — typically EIP-712 typed payloads for permits, structured approvals, or attestations. For plain string signing use [`signMessage()`](./methods-reference.md#megasignmessage).
 
 ## Signature
 
@@ -892,7 +898,7 @@ type SignDataResponse = {
 
 - User rejection resolves with `cancelled` — treat as neutral.
 - Reconnect disconnected wallets before signing.
-- Verify signatures server-side before issuing app sessions — see [Server Verify](../server-verify.md).
+- Verify signatures server-side before issuing app sessions — see [Server Verify](./server-verify.md).
 
 
 ---
@@ -903,7 +909,7 @@ type SignDataResponse = {
 
 Sign an arbitrary text payload (EIP-191) — for auth challenges, attestations, or action confirmation. The user sees the message in the wallet UI before signing. User rejection resolves with `status: 'cancelled'`, not a thrown error.
 
-**Use this when** you control the message and want the raw signature back to verify yourself. If you just want login and would rather MOSS own the challenge and hand you a verifiable JWT, use [`authenticate()`](authenticate.md) instead. For structured (EIP-712) typed data, use [`signData()`](sign-data.md).
+**Use this when** you control the message and want the raw signature back to verify yourself. If you just want login and would rather MOSS own the challenge and hand you a verifiable JWT, use [`authenticate()`](./methods-reference.md#megaauthenticate) instead. For structured (EIP-712) typed data, use [`signData()`](./methods-reference.md#megasigndata).
 
 ## Signature
 
@@ -942,8 +948,8 @@ type SignMessageResponse = {
 ## Notes
 
 - Don't auto-trigger signing after page load. Always follow a user action with context on why.
-- Verify the signature server-side before issuing app sessions — see [Server Verify](../server-verify.md).
-- If the wallet is disconnected, call [`connect()`](connect.md) first.
+- Verify the signature server-side before issuing app sessions — see [Server Verify](./server-verify.md).
+- If the wallet is disconnected, call [`connect()`](./methods-reference.md#megaconnect) first.
 
 
 ---
@@ -986,7 +992,7 @@ type ConnectionStatus = {
 
 ## Notes
 
-`status()` is a read — it doesn't prompt the user. To prompt for connection, use [`connect()`](connect.md). For continuous tracking, use [`events.onStatusChange`](on-status-change.md) and avoid polling.
+`status()` is a read — it doesn't prompt the user. To prompt for connection, use [`connect()`](./methods-reference.md#megaconnect). For continuous tracking, use [`events.onStatusChange`](./methods-reference.md#megaeventsonstatuschange) and avoid polling.
 
 
 ---
@@ -1023,11 +1029,11 @@ if (result.status === 'error') {
 
 ## Response
 
-Shared [`TransactionResult`](transfer.md#response) shape.
+Shared [`TransactionResult`](./methods-reference.md#megatransfer) shape.
 
 ## Notes
 
-Treat `cancelled` as user intent — avoid hard-failing app state. For programmatic contract calls (custom swap router, batch operations), use [`callContract()`](call-contract.md) instead.
+Treat `cancelled` as user intent — avoid hard-failing app state. For programmatic contract calls (custom swap router, batch operations), use [`callContract()`](./methods-reference.md#megacallcontract) instead.
 
 
 ---
@@ -1036,7 +1042,7 @@ Treat `cancelled` as user intent — avoid hard-failing app state. For programma
 
 # mega.transfer()
 
-Send native ETH, ERC-20, ERC-721, or ERC-1155 transfers from the connected wallet. Returns a `TransactionResult` with status, receipt, and optional error. The wallet always prompts for transfers — for silent delegated execution, use [`callContract()`](call-contract.md) with matching permissions.
+Send native ETH, ERC-20, ERC-721, or ERC-1155 transfers from the connected wallet. Returns a `TransactionResult` with status, receipt, and optional error. The wallet always prompts for transfers — for silent delegated execution, use [`callContract()`](./methods-reference.md#megacallcontract) with matching permissions.
 
 ## Signature
 
@@ -1051,7 +1057,7 @@ Send native ETH, ERC-20, ERC-721, or ERC-1155 transfers from the connected walle
 | `amount` | `string` | required | Wei (native) or smallest token unit. |
 | `contractAddress` | `string` | optional | Required for ERC-20 / 721 / 1155. |
 | `tokenId` | `number` | optional | Required for ERC-721 / 1155. |
-| `sponsor` | `boolean` | optional | Request sponsorship in `explicit` mode — see [Paymaster Guide](../paymaster-setup.md). |
+| `sponsor` | `boolean` | optional | Request sponsorship in `explicit` mode — see [Paymaster Guide](./paymaster/paymaster-setup.md). |
 
 ## Example
 
@@ -1105,4 +1111,4 @@ type TransactionResult = {
 ## Notes
 
 - Show amount, asset, and destination before opening the wallet.
-- If the wallet is disconnected, prompt [`connect()`](connect.md) first.
+- If the wallet is disconnected, prompt [`connect()`](./methods-reference.md#megaconnect) first.

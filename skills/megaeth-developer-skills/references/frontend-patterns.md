@@ -1,247 +1,169 @@
-# Frontend Patterns (React / Next.js)
+# Frontend Patterns
 
-## Architecture Principle
+## Chain configuration
 
-**Never open per-user WebSocket connections.** Use one connection, broadcast to users.
-
-```
-❌ Wrong: Each user → WebSocket → MegaETH
-✅ Right: Server → WebSocket → MegaETH, Server → broadcast → Users
-```
-
-## Real-time Data Flow
-
-### Server-Side WebSocket Manager
-
-```typescript
-// lib/megaeth-stream.ts
-import WebSocket from 'ws';
-
-class MegaETHStream {
-  private ws: WebSocket | null = null;
-  private subscribers = new Set<(data: any) => void>();
-  private keepaliveInterval: NodeJS.Timeout | null = null;
-
-  connect() {
-    this.ws = new WebSocket('wss://mainnet.megaeth.com/ws');
-
-    this.ws.on('open', () => {
-      // Subscribe to mini-blocks
-      this.ws!.send(JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_subscribe',
-        params: ['miniBlocks'],
-        id: 1
-      }));
-
-      // Keepalive every 30s
-      this.keepaliveInterval = setInterval(() => {
-        this.ws!.send(JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'eth_chainId',
-          params: [],
-          id: Date.now()
-        }));
-      }, 30000);
-    });
-
-    this.ws.on('message', (data) => {
-      const parsed = JSON.parse(data.toString());
-      if (parsed.method === 'eth_subscription') {
-        this.subscribers.forEach(fn => fn(parsed.params.result));
-      }
-    });
-
-    this.ws.on('close', () => {
-      if (this.keepaliveInterval) clearInterval(this.keepaliveInterval);
-      setTimeout(() => this.connect(), 1000); // Reconnect
-    });
-  }
-
-  subscribe(callback: (data: any) => void) {
-    this.subscribers.add(callback);
-    return () => this.subscribers.delete(callback);
-  }
-}
-
-export const megaStream = new MegaETHStream();
-```
-
-### Client-Side Hook
-
-```typescript
-// hooks/useMiniBlocks.ts
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-
-export function useMiniBlocks() {
-  const [latestBlock, setLatestBlock] = useState<MiniBlock | null>(null);
-  const [tps, setTps] = useState(0);
-
-  useEffect(() => {
-    const socket = io('/api/stream');
-
-    socket.on('miniBlock', (block: MiniBlock) => {
-      setLatestBlock(block);
-      setTps(block.transactions.length * 100); // ~100 mini-blocks/sec
-    });
-
-    return () => { socket.disconnect(); };
-  }, []);
-
-  return { latestBlock, tps };
-}
-```
-
-## Connection Warmup
-
-First HTTP request to an RPC endpoint incurs connection overhead (DNS + TCP + TLS handshake). For latency-sensitive apps, warm up the connection on startup:
-
-```typescript
-// On app init or wallet connect — before user needs to transact
-async function warmupRpcConnection(client: PublicClient) {
-  await client.getChainId(); // Cheap call to establish connection
-}
-
-// Now first real transaction won't have cold-start latency
-```
-
-**Why it matters:** MegaETH is designed for very low-latency block production, so avoid adding unnecessary client-side connection/setup overhead. A cold connection can add 50-200ms of overhead on the first request. Warming up ensures the connection pool is ready when users transact.
-
-**Best practice:** Call `eth_chainId` or `eth_blockNumber` on:
-- App initialization
-- Wallet connection
-- Network switch
-
-## Transaction Submission
-
-### Optimized Flow
-
-```typescript
-// lib/submit-tx.ts
-import { createWalletClient, http, custom } from 'viem';
-import { megaeth } from './chains';
-
-export async function submitTransaction(signedTx: `0x${string}`) {
-  const client = createWalletClient({
-    chain: megaeth,
-    transport: http('https://mainnet.megaeth.com/rpc')
-  });
-
-  // Use realtime method for immediate-feeling receipt return
-  const receipt = await client.request({
-    method: 'realtime_sendRawTransaction',
-    params: [signedTx]
-  });
-
-  return receipt; // Receipt available immediately
-}
-```
-
-### Chain Configuration (viem)
-
-```typescript
-// lib/chains.ts
-import { defineChain } from 'viem';
+```ts
+import { defineChain } from "viem";
 
 export const megaeth = defineChain({
   id: 4326,
-  name: 'MegaETH',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  name: "MegaETH",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://mainnet.megaeth.com/rpc'] }
+    default: {
+      http: ["https://mainnet.megaeth.com/rpc"],
+      webSocket: ["wss://mainnet.megaeth.com/ws"],
+    },
   },
   blockExplorers: {
-    default: { name: 'Etherscan', url: 'https://mega.etherscan.io' }
-  }
+    default: { name: "Etherscan", url: "https://mega.etherscan.io" },
+  },
 });
 
 export const megaethTestnet = defineChain({
   id: 6343,
-  name: 'MegaETH Testnet',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  name: "MegaETH Testnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://carrot.megaeth.com/rpc'] }
+    default: {
+      http: ["https://carrot.megaeth.com/rpc"],
+      webSocket: ["wss://carrot.megaeth.com/ws"],
+    },
   },
   blockExplorers: {
-    default: { name: 'Blockscout', url: 'https://megaeth-testnet-v2.blockscout.com' }
-  }
+    default: { name: "Etherscan", url: "https://testnet-mega.etherscan.io" },
+  },
 });
 ```
 
-## Gas Configuration
+Always check `eth_chainId` after connecting. Do not infer the network from a URL
+or token address alone.
 
-```typescript
-// ❌ Wrong: viem adds 20% buffer
-const gasPrice = await publicClient.getGasPrice();
+## WebSocket topology
 
-// ✅ Right: use base fee directly
-const gasPrice = 1000000n; // 0.001 gwei
+The public endpoint limits each IP to five connections, each connection to five
+subscriptions, and incoming messages to five per second. A backend fan-out
+connection is usually the right architecture for a multi-user application.
+Direct browser subscriptions can still be appropriate for low-volume clients,
+but budget them explicitly and implement reconnect behavior.
 
-// ✅ Right: hardcode gas for known operations
-const tx = await walletClient.sendTransaction({
-  to: recipient,
-  value: amount,
-  gas: 60000n,                // MegaETH intrinsic gas (not 21000!)
-  maxFeePerGas: 1000000n,
-  maxPriorityFeePerGas: 0n
-});
-```
+On every connection:
 
-## RPC Request Batching (v2.0.14+)
+1. subscribe and retain the returned subscription ID;
+2. send `eth_chainId` every 30 seconds to stay below the 60-second idle timeout;
+3. reconnect with capped exponential backoff;
+4. recreate subscriptions after reconnecting;
+5. deduplicate events because reconnect boundaries can overlap.
 
-As of v2.0.14, **Multicall is preferred** for batching `eth_call` requests. The `eth_call` implementation is now 2-10x faster, and Multicall amortizes per-RPC overhead.
+`miniBlocks` is MegaETH-specific. Its timestamp fields are microseconds, not
+JavaScript milliseconds, and its transaction rate should be measured over a
+time window rather than inferred from a fixed 100-mini-blocks-per-second
+constant.
 
-```typescript
-// ✅ Preferred: Multicall (v2.0.14+)
-import { multicall } from 'viem/actions';
-
-const results = await multicall(client, {
-  contracts: [
-    { address: token1, abi: erc20Abi, functionName: 'balanceOf', args: [user] },
-    { address: token2, abi: erc20Abi, functionName: 'balanceOf', args: [user] },
-    { address: pool, abi: poolAbi, functionName: 'getReserves' },
-  ]
-});
-
-// ❌ Still avoid: mixing slow with fast
-// Don't batch eth_getLogs with eth_call — logs are always slower
-```
-
-**Note:** Earlier guidance recommended JSON-RPC batching over Multicall for caching benefits. With v2.0.14's performance improvements, Multicall is now the preferred approach.
-
-## Historical Data
-
-Never block UX waiting for historical queries:
-
-```typescript
-// Load historical in background
-useEffect(() => {
-  // Don't await - let it load async
-  fetchHistoricalTrades().then(setTrades);
-}, []);
-
-// Use indexers for heavy queries
-// Recommended: Envio HyperSync
-// https://docs.envio.dev/docs/HyperSync/overview
-```
-
-## Error Handling
-
-```typescript
-const TX_ERRORS = {
-  'nonce too low': 'Transaction already executed',
-  'already known': 'Transaction pending',
-  'intrinsic gas too low': 'Increase gas limit',
-  'insufficient funds': 'Not enough ETH for gas'
+```ts
+type MiniBlock = {
+  block_number: number;
+  block_timestamp: number;
+  index: number;
+  mini_block_number: number;
+  mini_block_timestamp: number;
+  gas_used: number;
+  transactions: unknown[];
+  receipts: unknown[];
 };
+```
 
-function handleTxError(error: Error) {
-  for (const [pattern, message] of Object.entries(TX_ERRORS)) {
-    if (error.message.includes(pattern)) {
-      return message;
-    }
-  }
-  return 'Transaction failed';
+For real-time log subscriptions, set both `fromBlock` and `toBlock` to
+`"pending"`. Standard `logs` subscriptions otherwise follow standard Ethereum
+semantics. See [`realtime-api.md`](realtime-api.md) for the complete limits and
+subscription set.
+
+## Transaction submission
+
+Use the standard wallet flow to prepare and sign a transaction, then submit the
+serialized transaction through `realtime_sendRawTransaction` when the product
+needs a receipt as soon as execution completes:
+
+```ts
+import { createPublicClient, http, type Hex } from "viem";
+
+const client = createPublicClient({
+  chain: megaeth,
+  transport: http("https://mainnet.megaeth.com/rpc"),
+});
+
+export async function submitRealtime(serialized: Hex) {
+  return client.request({
+    method: "realtime_sendRawTransaction" as never,
+    params: [serialized] as never,
+  });
 }
 ```
+
+The call can return a receipt or time out. A timeout does not prove failure; look
+up the transaction hash before retrying. The public endpoint's explicit timeout
+parameter is capped at 3000 milliseconds.
+
+## Gas and fees
+
+Do not hardcode a universal gas limit, intrinsic gas value, base fee, or fee
+buffer. Query the target network:
+
+```ts
+const request = await walletClient.prepareTransactionRequest({
+  account,
+  to,
+  value,
+});
+
+const serialized = await walletClient.signTransaction(request);
+```
+
+MegaETH's documented minimum base fee is currently `0.001 gwei`, with base-fee
+adjustment effectively disabled, but applications should still read node fee
+data and avoid making that deployment setting a correctness assumption.
+
+## Read batching
+
+Choose batching by workload:
+
+- use JSON-RPC batches when independent RPC calls can share one HTTP round trip;
+- use Multicall3 when reads must observe one EVM execution context or the
+  contract-level aggregation is convenient;
+- keep large log and historical queries off latency-critical UI paths;
+- honor the public gateway's batch, per-method, and response-size limits.
+
+There is no current first-party guarantee that Multicall is universally faster
+or that `eth_call` has a fixed version-specific speedup. Measure the actual
+request mix.
+
+## Connection warmup
+
+For a latency-sensitive flow, a cheap startup request can establish DNS, TLS,
+and connection-pool state:
+
+```ts
+await client.getChainId();
+```
+
+The actual cold-start cost depends on user geography, runtime, transport, and
+provider. Do not promise a fixed millisecond saving.
+
+## UI state and reconciliation
+
+Keep these states distinct:
+
+- awaiting wallet approval;
+- signed locally;
+- submitted with known transaction hash;
+- receipt returned or found by polling;
+- application-defined confirmation/finality reached;
+- failed or replaced.
+
+Do not present a real-time request timeout as a failed transaction. Prefer error
+codes and structured provider errors over substring-only classification, and
+retain the original error for diagnostics.
+
+For historical analytics, load asynchronously or use an indexer whose retention
+and freshness guarantees match the product. The public RPC does not document a
+fixed historical-state retention period.

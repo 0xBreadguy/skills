@@ -43,6 +43,6 @@ Only choose a custom funding flow if you have strict product or compliance requi
 
 ## Related
 
-- [Quickstart](quickstart.md) — fit `mega.deposit()` into your first integration.
-- [`mega.deposit()`](methods/deposit.md) — exact method signature and behavior.
+- [Quickstart](../quickstart.md) — fit `mega.deposit()` into your first integration.
+- [`mega.deposit()`](../methods-reference.md#megadeposit) — exact method signature and behavior.
 - [Paymaster Guide](paymaster-setup.md) — configure sponsor mode and sponsorship policy alongside deposits.

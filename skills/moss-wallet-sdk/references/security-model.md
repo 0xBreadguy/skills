@@ -31,4 +31,4 @@ Use `silent: true` only after valid permissions exist for the exact `{ to, signa
 Treat the current SDK source as the observed contract for this release line, not a substitute for release-note compatibility guarantees. If your integration depends on exact iframe host behavior or extra query params, coordinate that expectation with MegaETH.
 {% endhint %}
 
-For session keys, restrictive permission defaults, and shipping checklists, see [Best Practices](../best-practices.md). For independent audits of the on-chain account contract, see [Security Audits](../audits.md).
+For session keys, restrictive permission defaults, and shipping checklists, see [Best Practices](./best-practices.md). For independent audits of the on-chain account contract, see [Security Audits](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-security-review/references/audits.md).

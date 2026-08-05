@@ -8,7 +8,9 @@ execution recipes, read `references/protocols/moss-cli/kyber.md`.
 KyberSwap's Aggregator API docs are the source for API shape:
 
 - EVM swaps: `https://docs.kyberswap.com/developer-guide/aggregator-api/aggregator-api-specification/evm-swaps.md`
-- Base URL: `https://aggregator-api.kyberswap.com`
+- Preferred production gateway: `https://api.kyberswap.com/swap`
+- Legacy public gateway: `https://aggregator-api.kyberswap.com` (stricter rate
+  limits; do not design production capacity around it)
 - MegaETH chain path identifier: `megaeth` for chain ID `4326`
 
 The docs publish markdown pages by appending `.md`; use that form when an agent
@@ -32,7 +34,10 @@ Required `GET /routes` parameters:
 | `tokenIn` | Input token address, or `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` for native ETH |
 | `tokenOut` | Output token address, or native sentinel |
 | `amountIn` | Input amount in base units |
-| `X-Client-Id` | Required header; app/company identifier |
+
+Required headers are `X-Client-Id` (the app/company identifier) and, on the
+preferred production gateway, `X-Api-Key`. Obtain and protect the key according
+to KyberSwap's current onboarding documentation.
 
 Important optional `GET /routes` parameters:
 
@@ -88,7 +93,7 @@ Before exposing or sending a KyberSwap transaction:
 
 - Use `mega-tokenlist` for token addresses and decimals.
 - Use base-unit amounts in API calls.
-- Always send `X-Client-Id`.
+- Always send `X-Client-Id`; send `X-Api-Key` to the production gateway.
 - Refetch routes if the user waits or changes amount/token/slippage.
 - Add tests for route-not-found, stale route, unsupported token, slippage too
   low, wrong recipient, native-input value, and token-input approval.

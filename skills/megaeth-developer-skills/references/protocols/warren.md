@@ -17,7 +17,7 @@ deployment flow.
 
 | Network | Chain ID | RPC | Explorer |
 | --- | ---: | --- | --- |
-| MegaETH Mainnet | `4326` | `https://mainnet.megaeth.com/rpc` | `https://megaeth.blockscout.com` |
+| MegaETH Mainnet | `4326` | `https://mainnet.megaeth.com/rpc` | `https://mega.etherscan.io` |
 
 ## Mainnet Contracts
 
@@ -28,7 +28,10 @@ deployment flow.
 | MasterNFT Registry | `0xf299F428Efe1907618360F3c6D16dF0F2Bf8ceFC` | website/file deploy |
 | WarrenContainer | `0xeF7d9452a7366d36238c10114CBbE62C0EBf70c3` | NFT deploy |
 | WarrenContainerRenderer | `0x4586351920A549e573b0ecC15AedEF37dC60aF65` | NFT deploy |
-| Treasury / Relayer | `0xcea9d92ddb052e914ab665c6aaf1ff598d18c550` | NFT deploy |
+| Treasury / Relayer account | `0xcea9d92ddb052e914ab665c6aaf1ff598d18c550` | NFT deploy |
+
+The Warren source assigns the last address that role; it is an externally owned
+account, not a deployed contract.
 
 The Warren extension config also references MegaNames at
 `0x5B424C6CCba77b32b9625a6fd5A30D409d20d997` for `.mega` integration.
@@ -139,8 +142,8 @@ Expected output includes `tokenId`, `rootChunk`, `depth`, and a URL such as:
 https://thewarren.app/v/site={TOKEN_ID}
 ```
 
-The source estimates about 0.001 ETH per small site deployment, but agents
-should treat gas cost as variable and check current balance/estimates.
+Estimate the current deployment against MegaETH before prompting the user. Do
+not rely on historical cost examples from the source.
 
 ## NFT Collection Deployment
 
@@ -186,8 +189,8 @@ Common NFT options:
 | `--max-per-wallet <number>` | no | mint limit per wallet |
 | `--royalty-bps <number>` | no | royalty, max 1000 bps in source |
 
-The source estimates about 0.03 ETH for a small collection around 10 images.
-Check current gas and wallet balance instead of hardcoding this estimate.
+Estimate the exact collection deployment and check current wallet balance
+instead of using a historical cost example.
 
 ## Loader And Viewing
 
@@ -207,7 +210,8 @@ loader.html?registry=0xf299F428Efe1907618360F3c6D16dF0F2Bf8ceFC&id={TOKEN_ID}
 ## MegaNames Integration
 
 MegaNames can point a `.mega` name at a Warren deployment using
-`setWarrenContenthash(tokenId, warrenTokenId, isMaster)`. Use
+`setWarrenContenthash(uint256 tokenId, uint32 warrenTokenId, bool isMaster)`.
+Use
 `protocols/meganames.md` for the MegaNames side.
 
 Use `isMaster = true` for MasterNFT site IDs. Use `isMaster = false` for

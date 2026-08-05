@@ -73,17 +73,21 @@ account profile locally. The callback must not contain private keys or
 transferable bearer credentials. Login alone is not enough for writes; create a
 scoped delegated key before `execute` or `transfer`.
 
-Prefer the default browser-opened loopback flow. Use `--no-browser` only as a
-fallback when the browser does not open automatically or when the user needs a
-URL to copy manually. `--no-browser` is not headless auth; it still uses
-same-machine loopback auth and waits for browser approval.
+Prefer the default browser-opened loopback flow when the browser and CLI run on
+the same machine. Use `--no-browser` only as a fallback when the browser does
+not open automatically or when the user needs a URL to copy manually.
+`--no-browser` is not headless auth; it still uses same-machine loopback auth
+and waits for browser approval.
+
+Use `--auth-flow device` only for headless or different-machine approval. The
+CLI prints a URL and verification code, the user approves in MegaETH Wallet,
+and the CLI polls the wallet API with PKCE until approval. `--no-browser` is
+unnecessary with device auth. If the CLI says device-code auth is unavailable,
+use loopback auth or a wallet backend that supports `/v1/cli-auth/device`.
 
 Do not reuse old authorization URLs or edit their query parameters. If an auth
 command times out, is interrupted, or the browser link stops verifying, rerun
 the command and use the new URL it opens or prints.
-
-Device-code auth is not supported right now. Do not use `--auth-flow device`;
-use loopback auth on the same machine as the browser.
 
 For both browser-opened and `--no-browser` authorization flows, pass
 `--timeout-ms 300000` when passkey approval may take longer than the default
@@ -115,9 +119,9 @@ Login defaults to mainnet, `https://account.megaeth.com`,
 targeting non-canonical endpoints. Use `--network testnet` for the wallet
 testnet profile and chain config.
 
-Create-key defaults keep the approval simple: one-week expiry and a `101 USDM`
-spend cap. Treat that as `100 USDM` workflow capacity plus a `1 USDM` relay-fee
-buffer merged into the same weekly spend row.
+Create-key defaults keep the approval simple: one-week expiry, a `100 USDM`
+workflow spend cap, and roughly `$1` of relay-fee capacity in the default fee
+token.
 The agent must provide call scope with `--allow-call <target:signature>`, copy a
 known-good key with `--from`, or pass a complete `--permissions
 ./permissions.json` file. Do not create workflow keys with implicit broad call
@@ -129,7 +133,7 @@ Use `mega moss create-key --spend-limit <token_address>:<amount>:<period>
 use `0x0000000000000000000000000000000000000000` for native ETH. Amount is the
 human token amount, and period is `minute`, `hour`, `day`, `week`, `month`, or
 `year`. Repeat `--spend-limit` for multiple spend rows. Custom permission files
-must include a non-empty `permissions.calls` array. Never omit
+must include top-level `feeToken` and a non-empty `permissions.calls` array. Never omit
 `permissions.calls`; omitted calls have produced keys that the relay rejects for
 writes. Each call entry must include both `to` and `signature`.
 Read [references/permissions.md](references/permissions.md) before building
@@ -144,23 +148,23 @@ address `0x3232323232323232323232323232323232323232` or selector
 `0x32323232`.
 
 Use `--fee-token <symbol>` and optional `--fee-limit <amount>` on `create-key`
-to request visible relay-fee spend capacity. `--fee-limit` is a human amount in
-the selected fee token, defaulting to `1`. If that token already has a spend
-row, the CLI adds the fee amount to that row and keeps the row period;
-otherwise it adds a weekly spend row for the fee token. If either fee option is
-present and no `--spend-limit` is supplied, the CLI requests only fee-token
-spend capacity; add explicit `--spend-limit` rows for workflow asset movement.
+to request explicit delegated-key relay-fee metadata. `--fee-limit` is a human
+amount in the selected fee token. If omitted, the CLI chooses an approximate
+`$1` fee-token buffer and adds or merges that fee spend capacity into
+`permissions.spend`; this default is fine for ordinary workflows. Set
+`--fee-limit` only when you have a specific reason to optimize, using roughly
+`$0.10` of the selected fee token per expected relay write transaction as a
+starting point. Add explicit `--spend-limit` rows for workflow token/native
+movement. If either fee option is present and no `--spend-limit` is supplied,
+the CLI requests fee spend capacity but no workflow spend rows. Supported
+shorthand fee-token symbols are `ETH`, `USDM`, `USDT0`, and `MEGA` on mainnet,
+and `ETH`, `USDM`, and `TST` on testnet.
 
-Relay fees use the same spend accounting as token/native movement. The CLI does
-not rely on request-level fee metadata as on-chain permission. Make sure the
-approved `permissions.spend` includes enough capacity for both the workflow
-amount and expected relay fees after the wallet UI approval returns. During
-approval, the wallet UI may add an additional roughly `$5` spend row for the
-user-selected Gas Token if no matching spend row is already present. Future
-`execute` and `transfer` calls default to the `authorizedKey.feeToken` returned
-by the wallet approval. When comparing an approved key to the requested workflow
-cap, treat wallet-added gas-token spend as relay-fee headroom rather than the
-workflow action amount.
+Relay fees use delegated-key fee metadata plus relay/account enforcement, while
+workflow token/native movement uses `permissions.spend`. Future `execute` and
+`transfer` calls default to the `authorizedKey.feeToken` returned by wallet
+approval. The Gas Token shown during approval pays the approval transaction
+itself and should not be treated as a mutation to the requested key scope.
 
 ## Inspect The Active Wallet
 
@@ -281,12 +285,11 @@ inspection, writes, revoke, fund, and logout commands.
 
 Use `create-key` when no existing key has the requested scope; it opens the
 browser/passkey approval flow and requires explicit call scope unless using
-`--from` or `--permissions`. Device-code auth is not supported right now, so
-create-key and revoke authorization require same-machine loopback auth. Use
-`revoke` to revoke a key on-chain; the CLI keeps an inactive audit record but
-removes local private key material. Revoke defaults to the key's stored fee
-token. On revoke, `--fee-token` selects the relay payment token for that revoke
-transaction.
+`--from` or `--permissions`. Add `--auth-flow device` only when the user must
+approve from a separate browser/device. Use `revoke` to revoke a key on-chain;
+the CLI keeps an inactive audit record but removes local private key material.
+Revoke defaults to the key's stored fee token. On revoke, `--fee-token` selects
+the relay payment token for that revoke transaction.
 
 ## Update And Uninstall
 

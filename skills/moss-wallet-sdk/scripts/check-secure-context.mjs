@@ -13,8 +13,9 @@
 // Examples:
 //   node check-secure-context.mjs http://localhost:5173      -> OK
 //   node check-secure-context.mjs http://127.0.0.1:3000      -> OK
-//   node check-secure-context.mjs https://yourapp.com        -> WARN (prod cert assumed; self-signed is refused)
+//   node check-secure-context.mjs https://yourapp.com        -> WARN (cert trust cannot be checked here)
 //   node check-secure-context.mjs http://192.168.1.50:5173   -> INVALID
+//   node check-secure-context.mjs https://192.168.1.50:5173  -> WARN (valid only with a trusted cert)
 //
 // Exit codes: 0 for OK or WARN, 1 for INVALID (or bad input).
 //
@@ -74,7 +75,11 @@ function verdict(level, message) {
   process.exit(level === 'INVALID' ? 1 : 0);
 }
 
-// Rule 1: http(s)://localhost or 127.0.0.1 (any port) => OK.
+if (protocol !== 'http' && protocol !== 'https') {
+  verdict('INVALID', `${protocol}:// is not an HTTP secure-context origin.`);
+}
+
+// Rule 1: localhost HTTP is a potentially trustworthy development origin.
 if (isLocalhost) {
   if (protocol === 'https') {
     verdict(
@@ -88,16 +93,8 @@ if (isLocalhost) {
   verdict('OK', `${protocol}://${hostname} is a valid secure context for WebAuthn passkey creation.`);
 }
 
-// Rule 2: private LAN IPs are never a secure context.
-if (isLan) {
-  verdict(
-    'INVALID',
-    `${hostname} is a private LAN IP — not a secure context per W3C, refused universally. ` +
-      'Use http://localhost for local dev, or a tunnel with a trusted cert (ngrok, cloudflared) to test on a device.'
-  );
-}
-
-// Rule 3: https on a real (non-localhost) host => OK in production with a trusted cert,
+// Rule 2: HTTPS on any non-localhost host, including a private IP, is secure
+// when the browser trusts the certificate. URL inspection cannot prove trust.
 // but we cannot inspect the cert from the URL, so WARN.
 if (protocol === 'https') {
   verdict(
@@ -108,10 +105,11 @@ if (protocol === 'https') {
   );
 }
 
-// Rule 4: plain http on any non-localhost host => INVALID.
+// Rule 3: plain HTTP on any non-localhost host, including a private LAN IP, is
+// not a secure context.
 verdict(
   'INVALID',
-  `http://${hostname} is not a secure context. ` +
+  `http://${hostname} is not a secure context${isLan ? ' (private LAN IP)' : ''}. ` +
     'WebAuthn passkey creation requires http://localhost or https:// with a trusted cert. ' +
     'Use http://localhost for local dev, or serve over https with a valid certificate.'
 );

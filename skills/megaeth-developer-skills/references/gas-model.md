@@ -1,266 +1,134 @@
-# Gas Model
+# MegaETH Gas Model
 
-> **Sources**: Gas model validated against [MegaEVM spec](https://github.com/megaeth-labs/mega-evm/blob/main/docs/DUAL_GAS_MODEL.md) and [BLOCK_AND_TX_LIMITS.md](https://github.com/megaeth-labs/mega-evm/blob/main/docs/BLOCK_AND_TX_LIMITS.md).
+MegaETH uses one transaction gas budget with two accounting dimensions:
 
-## Multidimensional Gas Model
+- **Compute gas** follows standard EVM execution costs.
+- **Storage gas** adds charges for persistent data and transaction data.
 
-MegaETH uses a **dual gas model** — compute gas and storage gas are separate dimensions:
+Receipt `gasUsed` is the combined total. Use a MegaETH RPC endpoint for
+estimation; standard local EVMs do not implement MegaETH storage gas or SALT
+bucket pricing.
 
-| Dimension | Description |
-|-----------|-------------|
-| **Compute gas** | Execution cost (opcodes, memory) |
-| **Storage gas** | Persistent state modification cost |
+## Current Network Parameters
 
-Both are paid from your gas limit, but tracked separately for resource accounting.
+| Parameter | Value |
+| --- | ---: |
+| Base fee | `0.001 gwei` (`1,000,000` wei); adjustment effectively disabled |
+| Base transaction compute gas | `21,000` |
+| Base transaction storage gas | `39,000` |
+| Minimum simple transaction total | `60,000` |
+| Per-transaction compute ceiling | `200,000,000` |
+| Current transaction gas cap | `10,000,000,000` |
+| Current block gas limit | `10,000,000,000` |
+| Gas forwarding | `98/100` of remaining gas |
 
-## Base Parameters
+Sequencer-configured values can change. Read the current network docs and RPC
+instead of hardcoding fee or gas-limit policy in long-lived software.
 
-| Parameter | Value | Notes |
-|-----------|-------|-------|
-| Base fee | 0.001 gwei (10⁶ wei) | Fixed, no EIP-1559 adjustment |
-| Priority fee | 0 | Ignored unless congested |
-| Intrinsic gas | 60,000 | 21K compute + 39K storage (not 21K like Ethereum) |
-| Gas forwarding | 98/100 | More gas available in nested calls than Ethereum's 63/64 |
+## Storage Gas Schedule
 
-## Per-Transaction Resource Limits (Rex)
+The current stable schedule includes:
 
-| Resource | TX Limit | Block Limit |
-|----------|----------|-------------|
-| Compute gas | 200M | per block |
-| KV updates | 500K | per block |
-| State growth slots | 1,000 | 1,000 |
-| Data size | 12.5 MB | per block |
-| Contract code | 512 KB | — |
-| Calldata | 128 KB | — |
+| Operation | Additional storage gas |
+| --- | ---: |
+| Transaction intrinsic | `39,000` |
+| `SSTORE` zero to nonzero | `20,000 * (m - 1)` |
+| New account from value transfer | `25,000 * (m - 1)` |
+| Contract creation | `32,000 * (m - 1)` |
+| Code deposit | `10,000` per deployed byte |
+| Log topic | `3,750` per topic |
+| Log data | `80` per byte |
+| Zero calldata byte | `40` per byte |
+| Nonzero calldata byte | `160` per byte |
 
-**Block limit overflow rule:** For post-execution limits (compute gas, data size, KV updates, state growth), the last transaction that causes the block to exceed the limit is **still included**. This maximizes block utilization — the block builder can't know actual usage until after execution. Subsequent transactions are skipped to the next block.
+`m` is the current SALT bucket multiplier. At `m = 1`, the dynamic surcharge
+for SSTORE/account/contract creation is zero; at larger multipliers it scales
+linearly. The multiplier depends on parent-block state and is not practical for
+an application to predict manually.
 
-### Per-Frame State Growth (Rex4)
+Storage gas charged for a zero-to-nonzero SSTORE is not refunded if the slot is
+later reset. Standard EVM compute-gas refunds still apply to their compute
+component.
 
-Rex4 adds per-frame state growth budgets. Each inner call frame gets at most 98% of the parent's remaining state growth budget, preventing a single inner call from consuming the entire tx's 1,000 slot limit.
+## Resource Limits
 
-```
-Top-level: 1000 slots
-  → Child A: 1000 * 98/100 = 980 slots
-    → Grandchild B: (980 - used) * 98/100
-```
+MegaETH also enforces resource dimensions independent of total gas:
 
-If a child frame exceeds its budget, it **reverts** (not halts) — the parent can catch it and continue. The revert data is `MegaLimitExceeded(uint8 kind, uint64 limit)` where kind=3 for state growth.
+| Resource | Transaction | Block |
+| --- | ---: | ---: |
+| Compute gas | `200,000,000` | no separate limit |
+| Data size | `13,107,200` bytes (12.5 MiB) | same |
+| KV updates | `500,000` | same |
+| State growth | `1,000` | same |
+| Encoded transaction size | current config `1 MiB` | no dedicated current cap |
+| DA size | adaptive | adaptive |
 
-### MegaAccessControl (Rex4)
+Gas, encoded transaction size, and DA size are checked before execution.
+Compute, data, KV-update, and state-growth limits are measured at runtime. A
+transaction that exceeds a runtime transaction limit is included with a failed
+receipt and no committed state changes. For block-level runtime dimensions,
+the first transaction that reaches or crosses the limit remains included, then
+later transactions are skipped.
 
-System contract at `0x6342000000000000000000000000000000000004` lets contracts opt out of volatile data access:
+From Rex4 onward, nested call frames receive `98/100` of the parent's remaining
+budget for compute, data, KV updates, and state growth. A child that exceeds a
+frame budget reverts with `MegaLimitExceeded(uint8 kind, uint64 limit)`; its
+parent may catch the revert.
 
-```solidity
-import {IMegaAccessControl} from "./interfaces/IMegaAccessControl.sol";
+## Gas Detention
 
-IMegaAccessControl access = IMegaAccessControl(0x6342000000000000000000000000000000000004);
+Reading volatile state triggers a **relative** compute budget. At the first
+trigger, the effective limit becomes current compute usage plus up to
+`20,000,000` additional compute gas, bounded by the existing effective limit.
+It is not a retroactive 20M total cap.
 
-// Disable volatile data in this frame + all inner calls
-access.disableVolatileDataAccess();
+Triggers include:
 
-// Call untrusted code — if it touches block.timestamp, it reverts
-// instead of triggering the 20M compute gas cap
-(bool ok, ) = untrusted.call(data);
+- block-environment opcodes such as `TIMESTAMP`, `NUMBER`, `BLOCKHASH`,
+  `COINBASE`, `PREVRANDAO`, `GASLIMIT`, `BASEFEE`, `BLOBBASEFEE`, and
+  `BLOBHASH`
+- accesses to the block beneficiary account
+- SLOAD from native oracle storage
 
-// Re-enable
-access.enableVolatileDataAccess();
-```
+The high-precision timestamp system contract also reads volatile oracle state;
+it does not bypass detention. Read volatile data late when possible, or split
+work if more than 20M compute is needed after the read.
 
-Key rules:
-- Scoped to caller's subtree — sibling calls after the frame returns are unaffected
-- Children cannot override parent restrictions (`DisabledByParent()` revert)
-- Blocked accesses do NOT trigger gas detention — the access is rejected before affecting tracking
+## Estimation
 
-## Setting Gas Price
+Use remote `eth_estimateGas` for all value-bearing operations:
 
-### Correct Approach
-
-```javascript
-// MegaETH: use base fee directly
-const gasPrice = 1000000n; // 0.001 gwei in wei
-
-// Or fetch from RPC (always returns 0.001 gwei)
-const baseFee = await client.request({ method: 'eth_gasPrice' });
-```
-
-### Common Mistakes
-
-```javascript
-// ❌ Wrong: viem adds 20% buffer
-const gasPrice = await publicClient.getGasPrice(); // Returns 1.2M wei
-
-// ❌ Wrong: using maxPriorityFeePerGas
-const priority = await client.request({
-  method: 'eth_maxPriorityFeePerGas'
-}); // Returns 0 (hardcoded)
-```
-
-## Gas Estimation
-
-### MegaEVM Intrinsic Gas
-
-> ⚠️ **Important:** MegaEVM has different intrinsic gas costs than standard EVM. A simple ETH transfer costs **60,000 gas** on MegaETH, not 21,000.
-
-If you hardcode gas limits, use MegaETH-specific values:
-
-```javascript
-// Common operations - MegaETH gas limits
-const gasLimits = {
-  transfer: 60000n,       // NOT 21000 like standard EVM
-  erc20Transfer: 100000n, // Higher than standard EVM
-  erc20Approve: 80000n,
-  swap: 350000n,
-};
-
-// Send with correct gas limit
-await wallet.sendTransaction({
-  to: recipient,
-  value: amount,
-  gasLimit: 60000n,       // MegaETH intrinsic gas
-  maxFeePerGas: 1000000n,
-});
-```
-
-### When to Use Remote Estimation
-
-For any non-trivial operation, use `eth_estimateGas` — MegaEVM opcode costs differ from standard EVM:
-
-```javascript
-// ✅ Correct: remote estimation
-const gas = await client.request({
-  method: 'eth_estimateGas',
-  params: [{ from, to, data }]
-});
-
-// ❌ Wrong: local simulation (Hardhat/Foundry)
-// These use standard EVM costs, not MegaEVM
-```
-
-For Foundry:
 ```bash
-# Skip local simulation, use remote
-forge script Deploy.s.sol --gas-limit 5000000 --skip-simulation
+cast estimate 0xContract \
+  'method(uint256)' 42 \
+  --from 0xSender \
+  --rpc-url https://mainnet.megaeth.com/rpc
 ```
 
-## Volatile Data Access Limit
+The public estimator has a current CPU-time budget of 0.5 seconds. If it cannot
+estimate a valid heavy transaction, reproduce it with `mega-evme` and use a
+carefully tested manual gas limit, or use a provider with suitable limits.
 
-Accessing block metadata caps the **total** compute gas for the entire transaction to 20M — retroactively. This is not a budget for remaining work; it's an absolute ceiling. If the transaction has already used more than 20M compute gas before the volatile opcode, it immediately reverts with OOG.
+Do not use generic fixed limits for ERC20 transfers, approvals, swaps, or
+deployments. State, calldata, emitted logs, deployed code size, and SALT bucket
+state all affect the result.
 
-```solidity
-// Operations that trigger the 20M total compute gas cap:
-block.timestamp   // TIMESTAMP
-block.number      // NUMBER
-blockhash(n)      // BLOCKHASH
-block.basefee     // BASEFEE
-block.prevrandao  // PREVRANDAO
-block.gaslimit    // GASLIMIT
-block.coinbase    // COINBASE
-// Also: BLOBBASEFEE, BLOBHASH
-// Also: any access to the beneficiary account (BALANCE, EXTCODESIZE, etc.)
+## Other EVM Differences
 
-// Oracle contract SLOAD: also 20M cap (raised from 1M in Rex3)
-```
+- Runtime code limit: 512 KiB.
+- Initcode limit: 536 KiB.
+- `SELFDESTRUCT` follows EIP-6780 semantics.
+- Logs have linear storage charges of `3,750/topic + 80/byte`; there is no
+  documented quadratic-above-4-KiB rule.
+- Transient storage (`TSTORE`/`TLOAD`) avoids persistent-storage gas for
+  transaction-scoped data.
 
-**Key rules:**
-- The cap is **retroactive** — it limits total compute gas, not just what's left
-- Front-loading heavy computation before `block.timestamp` does NOT help
-- If multiple volatile types are accessed, the most restrictive cap wins
-- Oracle SLOAD triggers a separate 20M cap (Rex3+); pre-Rex3 was 1M
+## Sources
 
-**Workaround:** Keep total compute gas under 20M in any transaction that touches block metadata, or use the high-precision timestamp oracle which has separate accounting.
-
-## Fee History
-
-Get historical gas prices:
-
-```javascript
-const history = await client.request({
-  method: 'eth_feeHistory',
-  params: ['0x10', 'latest', [25, 50, 75]]
-});
-// Returns base fees and priority fee percentiles
-```
-
-## Priority Fees in Practice
-
-Priority fees only matter during congestion:
-
-```javascript
-// During normal operation: any priority fee works
-// During congestion: higher priority = faster inclusion
-
-const tx = {
-  maxFeePerGas: 1000000n,      // 0.001 gwei
-  maxPriorityFeePerGas: 0n,    // Usually sufficient
-};
-```
-
-## SSTORE Costs (Storage Gas)
-
-The most important gas difference from standard EVM. SSTORE 0→nonzero costs:
-
-```
-Compute gas: 22,100
-Storage gas: 20,000 × (bucket_multiplier - 1)
-```
-
-| Bucket Multiplier | Storage Gas | Total Gas |
-|-------------------|-------------|-----------|
-| 1 | 0 | 22,100 |
-| 2 | 20,000 | 42,100 |
-| 10 | 180,000 | 202,100 |
-| 100 | 1,980,000 | 2,002,100 |
-
-**Key insight:** When multiplier = 1, storage gas is **zero**. This is why slot reuse patterns (RedBlackTreeLib, transient storage) are so important.
-
-### Transient Storage (EIP-1153)
-
-Use `TSTORE`/`TLOAD` for temporary data within a transaction — avoids storage gas entirely:
-
-```solidity
-// Transient storage - no storage gas cost
-assembly {
-    tstore(0, value)  // Store temporarily
-    let v := tload(0) // Load back
-}
-// Cleared after transaction
-```
-
-## Gas Forwarding Ratio
-
-MegaETH uses **98/100** gas forwarding (vs Ethereum's 63/64):
-
-```solidity
-// More gas available in nested calls
-// Each call depth loses only 2%, not ~1.5%
-// Budget accordingly for deep call chains
-```
-
-## Gas Refunds
-
-Standard EVM refunds apply (SSTORE clear), but:
-- Refund capped at 50% of gas used
-- SELFDESTRUCT is disabled on MegaETH
-
-## LOG Opcode Costs
-
-After a DoS attack, LOG opcodes have quadratic cost above 4KB data:
-
-```solidity
-// Gas cost for log data:
-// < 4KB: linear
-// > 4KB: quadratic growth
-```
-
-This affects contracts emitting large events.
-
-## Contract Deployment
-
-| Resource | Limit |
-|----------|-------|
-| Contract code | 512 KB |
-| Calldata | 128 KB |
-| Deployment gas | Effectively unlimited |
-
-For large contracts, may need VIP endpoint (higher gas limit on `eth_estimateGas`).
+- `https://docs.megaeth.com/dev/execution/gas-model`
+- `https://docs.megaeth.com/dev/execution/resource-limits`
+- `https://docs.megaeth.com/dev/execution/volatile-data`
+- `https://docs.megaeth.com/dev/send-tx/gas-estimation`
+- `https://docs.megaeth.com/spec/megaevm/dual-gas-model`
+- `https://docs.megaeth.com/spec/megaevm/resource-limits`
+- `https://docs.megaeth.com/spec/megaevm/gas-detention`

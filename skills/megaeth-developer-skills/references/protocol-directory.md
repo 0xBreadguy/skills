@@ -11,12 +11,10 @@ command safety, delegated-key permissions, and wallet operation mechanics.
 - [protocols/kyber.md](protocols/kyber.md): concrete KyberSwap Aggregator API
   guidance backed by KyberSwap docs.
 - [protocols/kumbaya.md](protocols/kumbaya.md): Kumbaya V3-style DEX guidance
-  adapted from `megaeth-ai-developer-skills/kumbaya-dex.md`; verify official
-  Kumbaya sources before production or value-bearing execution.
-- [protocols/prism.md](protocols/prism.md): Prism V3-style DEX and
-  taxable-router guidance adapted from
-  `megaeth-ai-developer-skills/prism-dex.md`; verify official Prism sources
-  before production or value-bearing execution.
+  checked against the protocol-owned integrator kit.
+- [protocols/prism.md](protocols/prism.md): Prism discovery and verification
+  boundary; write recipes are withheld until protocol-owned deployments and
+  ABIs are public or directly confirmed.
 - [protocols/sir.md](protocols/sir.md): SIR Trading no-liquidation leveraged
   token, TEA liquidity, MegaSIR staking, and fee-auction guidance adapted from
   the SIR Trading skill.
@@ -43,10 +41,10 @@ Protocol-specific MOSS CLI execution recipes live under
 | --- | --- | --- | --- |
 | Aave | actionable | actionable | Aave address book |
 | KyberSwap | actionable API pattern | actionable once API returns router/calldata | KyberSwap Aggregator docs |
-| Kumbaya | provisional but concrete | scoped templates, verify before writes | imported developer-skill material; official verification required |
-| Prism | provisional but concrete | scoped templates, verify before writes | imported developer-skill material; official verification required |
-| SIR Trading | actionable, verify upstream before writes | scoped templates, verify before writes | SIR Trading skill and SIR Core/Periphery pointers |
-| MegaNames | actionable, verify upstream before writes | scoped templates, verify before writes | MegaNames skill |
+| Kumbaya | actionable | scoped templates, re-check before writes | protocol-owned integrator kit and ABIs |
+| Prism | read/discovery only | no write recipe | live project endpoints; no public protocol-owned ABI/deployment source found |
+| SIR Trading | actionable, re-check live build data | scoped templates, verify before writes | live SIR build data, skill, and deployed ABI |
+| MegaNames | actionable on mainnet | scoped templates, verify before writes | MegaNames source; testnet sources conflict |
 | Warren | actionable script workflow | routing guidance; no raw MOSS calldata recipe | Warren tools repo |
 
 ## External Ecosystem Index

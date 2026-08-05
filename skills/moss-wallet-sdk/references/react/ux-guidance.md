@@ -49,4 +49,4 @@ If you need different configs on different routes, prefer config that changes vi
 
 ## Copy Conventions
 
-For account onboarding, prefer "Creating your account" and "Restoring account" — see [Best Practices > Account recovery wording](../core-sdk/error-handling.md#account-recovery-wording) for the full guidance.
+For account onboarding, prefer "Creating your account" and "Restoring account" — see [Best Practices > Account recovery wording](../error-handling.md#account-recovery-wording) for the full guidance.

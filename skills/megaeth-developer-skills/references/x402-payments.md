@@ -1,397 +1,194 @@
 # x402 Payments on MegaETH
 
-AI coding skill for integrating x402 payments on MegaETH
-using the standard Permit2 flow. Covers seller (server)
-and buyer (agent/client) implementation.
+Use x402 for an HTTP `402 Payment Required` flow in which a client signs a
+payment authorization, retries the protected request, and a facilitator verifies
+and settles the payment. Use the current x402 v2 packages and schemas instead of
+hand-assembling legacy headers or proxy calldata.
 
-## What This Skill Is For
+## Sources and version boundary
 
-Use this skill when the user asks for:
-- x402 payments on MegaETH
-- Protecting APIs, tools, MCP servers, or agent actions
-  behind a paywall
-- Permit2-based token transfers on MegaETH
-- Seller-side payment verification and settlement
-- Buyer-side token approval, signing, and payment
+- MegaETH payments guide: https://docs.megaeth.com/developer-docs/payments
+- MegaETH payment demo: https://github.com/megaeth-labs/payment-demo
+- x402 specification and packages: https://github.com/x402-foundation/x402
 
-Use `meridian.md` instead when the integration goes
-through Meridian's facilitator and `/v1/settle` API.
-That is the managed path when you do not want to run
-your own settlement signer or call the Permit2 proxy
-directly.
+The package API, transport headers, extensions, and supported schemes can change.
+Pin compatible `@x402/*` package versions, consult that version's documentation,
+and let the libraries serialize and parse protocol messages.
 
-## Verified MegaETH Contracts
+MPP is a separate payment-protocol family with one-time and session flows. Do
+not mix x402 payloads with MPP credentials merely because both can use HTTP 402.
 
-### Mainnet (Chain ID: 4326)
+## MegaETH network identifiers
 
-| Contract | Address |
-|----------|---------|
-| x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
-| x402UptoPermit2Proxy | `0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002` |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
-| USDm (token) | `0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7` |
+The x402 v2 EVM network value is CAIP-2:
 
-### Testnet (Chain ID: 6343)
+| Network | Value |
+| --- | --- |
+| Mainnet | `eip155:4326` |
+| Testnet | `eip155:6343` |
 
-| Contract | Address |
-|----------|---------|
-| x402ExactPermit2Proxy | `0x402085c248EeA27D92E8b30b2C58ed07f9E20001` |
-| x402UptoPermit2Proxy | `0x402039b3d6E6BEC5A02c2C9fd937ac17A6940002` |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
+Resolve the payment asset from the target network's current token source. The
+canonical MegaUSD addresses are in [`usdm.md`](usdm.md), but a demo or managed
+facilitator may intentionally support a different test token.
 
-All contracts are deployed to the same canonical addresses
-on both networks via deterministic CREATE2.
+## Roles
 
-### RPC Endpoints
+1. The **resource server** declares accepted payment requirements and withholds
+   the resource until payment verifies and settles under its policy.
+2. The **client** reads the 402 response, selects an acceptable requirement,
+   signs with the user's wallet, and retries the request.
+3. The **facilitator** advertises supported network/scheme combinations,
+   verifies payloads, and submits settlement transactions.
 
-| Network | RPC |
-|---------|-----|
-| Mainnet | `https://mainnet.megaeth.com/rpc` |
-| Testnet | `https://carrot.megaeth.com/rpc` |
+A facilitator normally pays settlement gas. This does not mean every arbitrary
+facilitator supports MegaETH, the selected token, Permit2, or first-payment gas
+sponsorship.
 
-## Mental Model
+## Check facilitator support first
 
-x402 uses HTTP 402 (Payment Required) as the payment
-trigger. The flow:
+Before exposing a price or prompting a signature, query the facilitator's
+supported-capabilities endpoint through `HTTPFacilitatorClient.getSupported()`
+or the equivalent API in the pinned package version. Confirm all of:
 
-```
-1. Client requests protected resource
-2. Server returns 402 + payment requirements
-3. Client signs Permit2 authorization (off-chain)
-4. Client retries request with payment header
-5. Server settles on-chain via Permit2Proxy
-6. Server returns the resource
-```
+- network (`eip155:4326` or `eip155:6343`);
+- scheme (`exact` for the flow below);
+- asset and transfer method;
+- required extensions, including EIP-2612 gas sponsorship if selected;
+- authentication, fees, limits, confirmation policy, and availability.
 
-The client never submits a transaction. The server
-(or facilitator) pays gas and executes on-chain. On
-MegaETH, gas is negligible (<$0.001/tx) and settlement
-takes <50ms.
+Do not recommend a hosted facilitator solely because it appears in an ecosystem
+list. Its MegaETH support, pricing, auth requirements, and operational status
+must be checked directly.
 
-### Two Proxy Variants
+## Resource server pattern
 
-- **Exact** (`0x4020...0001`): Transfers the full
-  permitted amount. Simpler. Anyone can submit the
-  settlement tx. Use this for standard payments.
+The current MegaETH payment demo uses `@x402/next`, `@x402/evm`, and
+`@x402/extensions`:
 
-- **Upto** (`0x4020...0002`): Transfers up to the
-  permitted amount. The facilitator chooses the final
-  amount at settlement. Use this for variable pricing
-  or when the exact cost isn't known upfront.
+```ts
+import { NextResponse } from "next/server";
+import { withX402, x402ResourceServer } from "@x402/next";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { declareEip2612GasSponsoringExtension } from "@x402/extensions";
 
-## Seller / Server Side
+const network = "eip155:6343" as const;
+const resourceServer = new x402ResourceServer(facilitatorClient).register(
+  network,
+  new ExactEvmScheme(),
+);
 
-### Payment Requirements
-
-The seller defines what payment is required via a
-`PaymentRequirements` object returned in the 402
-response:
-
-```typescript
-const paymentRequirements = {
-  scheme: "exact",
-  network: "eip155:4326",
-  maxAmountRequired: "1000000000000000000", // 1 USDm
-  resource: "https://api.example.com/resource",
-  description: "API access",
-  mimeType: "application/json",
-  payTo: "0xYOUR_WALLET_ADDRESS",
-  maxTimeoutSeconds: 300,
-  asset: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-  extra: {
-    name: "USDm",
-    version: "1"
-  }
-};
-```
-
-Key fields:
-- `scheme`: `"exact"` or `"upto"`
-- `network`: `"eip155:4326"` (mainnet) or
-  `"eip155:6343"` (testnet)
-- `maxAmountRequired`: Amount in base units (18
-  decimals for USDm — 1 USDm = 10^18)
-- `asset`: The ERC-20 token address
-- `payTo`: Your wallet address that receives payment
-
-### Server Middleware (Express)
-
-```typescript
-import express from "express";
-
-const app = express();
-
-app.get("/api/resource", (req, res) => {
-  const authHeader = req.headers["x-payment"];
-  if (!authHeader) {
-    return res.status(402).json({
-      paymentRequirements: [{
-        scheme: "exact",
-        network: "eip155:4326",
-        maxAmountRequired: "1000000000000000000",
-        resource: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
-        description: "1 USDm for API access",
-        payTo: process.env.WALLET_ADDRESS,
-        maxTimeoutSeconds: 300,
-        asset: "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
-        extra: { name: "USDm", version: "1" }
-      }]
-    });
-  }
-
-  // Verify and settle payment
-  // (use x402 facilitator or self-settle)
-  // Then return the resource
-  res.json({ data: "protected content" });
-});
-```
-
-### Self-Settlement
-
-To settle payments yourself without a facilitator,
-call the Permit2Proxy directly:
-
-```typescript
-import { createWalletClient, http, parseAbi } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-
-const EXACT_PROXY = "0x402085c248EeA27D92E8b30b2C58ed07f9E20001";
-
-const settleAbi = parseAbi([
-  "function settle((address token, uint256 amount) permit, address owner, (address to, uint256 validAfter) witness, bytes signature) external"
-]);
-
-const walletClient = createWalletClient({
-  account: privateKeyToAccount(process.env.PRIVATE_KEY),
-  chain: {
-    id: 4326,
-    name: "MegaETH",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: ["https://mainnet.megaeth.com/rpc"] } }
+const GET = withX402(
+  async () => NextResponse.json({ data: "protected content" }),
+  {
+    accepts: [{
+      scheme: "exact",
+      network,
+      payTo: recipient,
+      price: {
+        amount: "1000000000000000000",
+        asset: tokenAddress,
+        extra: {
+          name: tokenDomainName,
+          version: tokenDomainVersion,
+          assetTransferMethod: "permit2",
+        },
+      },
+    }],
+    description: "Protected resource",
+    mimeType: "application/json",
+    extensions: {
+      ...declareEip2612GasSponsoringExtension(),
+    },
   },
-  transport: http()
-});
+  resourceServer,
+);
 
-async function settle(paymentPayload) {
-  const { permit, owner, witness, signature } = paymentPayload;
-  const hash = await walletClient.writeContract({
-    address: EXACT_PROXY,
-    abi: settleAbi,
-    functionName: "settle",
-    args: [permit, owner, witness, signature]
-  });
-  return hash;
-}
+export { GET };
 ```
 
-This is the do-it-yourself path. If you do not want to
-run seller-side settlement infrastructure yourself,
-Meridian provides a hosted facilitator path where your
-server forwards `paymentPayload` and
-`paymentRequirements` to `/v1/settle` instead. See
-`meridian.md`.
+Read the token's current EIP-712 domain from the contract where possible. Do not
+assume that display symbol, EIP-712 name, and version are identical.
 
-## Buyer / Client Side
+The EIP-2612 gas-sponsoring extension is appropriate only for a token that
+actually supports the required permit flow and a facilitator that supports the
+extension. Permit2 is the asset-transfer method; EIP-2612 is the token-level
+authorization that can avoid a separate gas-paid Permit2 approval.
 
-### One-Time Setup: Approve Permit2
+## Client pattern
 
-Before any x402 payment, the buyer must approve the
-Permit2 contract to spend their tokens. This is a
-one-time operation per token:
+Let `@x402/fetch` handle the 402 response and payment transport:
 
-```typescript
-import { createWalletClient, http, parseAbi, maxUint256 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+```ts
+import { x402Client, x402HTTPClient, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 
-const USDM = "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7";
-const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+const client = new x402Client();
+client.register("eip155:*", new ExactEvmScheme(evmSigner));
 
-const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+const httpClient = new x402HTTPClient(client);
+const fetchWithPayment = wrapFetchWithPayment(fetch, httpClient);
 
-const walletClient = createWalletClient({
-  account,
-  chain: { id: 4326, rpcUrls: { default: { http: ["https://mainnet.megaeth.com/rpc"] } } },
-  transport: http()
-});
+const response = await fetchWithPayment(url);
+if (!response.ok) throw new Error(`payment request failed: ${response.status}`);
 
-// Approve Permit2 (one-time per token)
-await walletClient.writeContract({
-  address: USDM,
-  abi: parseAbi(["function approve(address,uint256) returns (bool)"]),
-  functionName: "approve",
-  args: [PERMIT2, maxUint256]
-});
+const settlement = httpClient.getPaymentSettleResponse(
+  (name) => response.headers.get(name),
+);
 ```
 
-For production, consider using a bounded approval
-instead of `maxUint256`.
+Before signing, surface and validate the network, asset, amount, recipient,
+resource, expiry, and scheme. Never sign an opaque requirement merely because a
+server returned HTTP 402.
 
-### Signing a Payment
+## Facilitator operation
 
-When the client receives a 402, it signs a Permit2
-`PermitWitnessTransferFrom` message:
+The x402 packages expose facilitator-side EVM scheme implementations. The
+MegaETH demo adapts a viem signer with `toFacilitatorEvmSigner`, registers
+`ExactEvmScheme`, and can submit settlement with
+`realtime_sendRawTransaction`.
 
-```typescript
-import { SignatureTransfer } from "@uniswap/permit2-sdk";
+For production:
 
-const EXACT_PROXY = "0x402085c248EeA27D92E8b30b2C58ed07f9E20001";
-const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+- keep signer keys in a managed secret or signing service;
+- authenticate private `/verify` and `/settle` routes or keep them behind a
+  trusted network boundary;
+- serialize or otherwise manage nonces for concurrent settlement;
+- rate-limit callers and validate the declared network and asset;
+- reconcile real-time timeouts before retrying;
+- define the confirmation level required before releasing each resource;
+- make verification and crediting idempotent.
 
-function createPaymentSignature(
-  paymentRequirements,
-  signerAddress,
-  nonce
-) {
-  const permit = {
-    permitted: {
-      token: paymentRequirements.asset,
-      amount: paymentRequirements.maxAmountRequired
-    },
-    spender: EXACT_PROXY,
-    nonce,
-    deadline: Math.floor(Date.now() / 1000) + paymentRequirements.maxTimeoutSeconds
-  };
+The payment demo's local facilitator endpoint is a reference implementation, not
+an unauthenticated public service template.
 
-  const witness = {
-    to: paymentRequirements.payTo,
-    validAfter: 0
-  };
+## Settlement and finality
 
-  const witnessType = {
-    Witness: [
-      { name: "to", type: "address" },
-      { name: "validAfter", type: "uint256" }
-    ]
-  };
+A successful fresh receipt is not an unconditional finality guarantee. Choose a
+confirmation policy from payment value and resource reversibility. Ensure the
+same authorization or transaction cannot be credited twice across retries,
+reorgs, or re-mining.
 
-  // Build EIP-712 typed data for signing
-  const { domain, types, values } = SignatureTransfer.getPermitData(
-    permit,
-    PERMIT2,
-    4326, // chainId
-    witness,
-    witnessType
-  );
+Do not publish fixed claims such as “under 50 ms” or “under $0.001.” End-to-end
+latency and cost depend on wallet interaction, network path, facilitator queue,
+transaction execution, confirmation policy, and current fee conditions.
 
-  return { permit, witness, domain, types, values };
-}
+## Amount handling
+
+Use on-chain/token-list decimals:
+
+```ts
+const amount = parseUnits("1", tokenDecimals);
 ```
 
-The signer roles are split deliberately:
-- `permit.spender` is the x402 exact proxy that will consume the permit
-- `domain.verifyingContract` is the Permit2 contract that verifies the EIP-712 signature
+Canonical MegaUSD currently has 18 decimals. Do not transfer USDC's common
+six-decimal assumption to other assets, and do not assume every x402 SDK example
+defaults to the desired MegaETH token.
 
-### Full Buyer Flow
+## Avoid these inherited patterns
 
-```typescript
-async function payForResource(url) {
-  // 1. Request the resource
-  let res = await fetch(url);
-
-  if (res.status !== 402) return res;
-
-  // 2. Parse payment requirements
-  const { paymentRequirements } = await res.json();
-  const req = paymentRequirements[0];
-
-  // 3. Sign Permit2 authorization
-  const { permit, witness, domain, types, values } =
-    createPaymentSignature(req, account.address, Date.now());
-
-  const signature = await account.signTypedData({
-    domain, types, primaryType: "PermitWitnessTransferFrom",
-    message: values
-  });
-
-  // 4. Build payment payload
-  const paymentPayload = {
-    signature,
-    permit: {
-      permitted: permit.permitted,
-      nonce: permit.nonce.toString(),
-      deadline: permit.deadline.toString()
-    },
-    witness: {
-      to: witness.to,
-      validAfter: witness.validAfter.toString()
-    },
-    owner: account.address
-  };
-
-  // 5. Retry with payment
-  res = await fetch(url, {
-    headers: {
-      "X-PAYMENT": JSON.stringify(paymentPayload),
-      "X-PAYMENT-REQUIREMENTS": JSON.stringify(req)
-    }
-  });
-
-  return res;
-}
-```
-
-## Amount Handling
-
-USDm on MegaETH uses **18 decimals**. This differs from
-USDC (6 decimals) on most other chains.
-
-| Amount | Base Units (18 decimals) |
-|--------|--------------------------|
-| 0.01 USDm | `10000000000000000` |
-| 0.10 USDm | `100000000000000000` |
-| 1.00 USDm | `1000000000000000000` |
-| 10.00 USDm | `10000000000000000000` |
-
-Do not use 6-decimal USDC math. Always use 18 decimals
-for USDm amounts.
-
-## Settlement Speed
-
-MegaETH's 10ms block times enable settlement in under
-50ms end-to-end. Use `realtime_sendRawTransaction` for
-inline receipt confirmation:
-
-```typescript
-const receipt = await client.request({
-  method: "realtime_sendRawTransaction",
-  params: [signedTx]
-});
-// Receipt returned inline — no polling needed
-```
-
-## Meridian-Specific Integrations
-
-This guide stays general-purpose and focuses on the
-standard MegaETH x402 Permit2 flow.
-
-If you are integrating with Meridian specifically, use
-`meridian.md` for:
-- Meridian organization and API key setup
-- Managed seller-side settlement through `/v1/settle`
-- No need to operate your own settlement wallet or call
-  Permit2Proxy directly from your app backend
-- Meridian's facilitator-bound Permit2 flow on MegaETH
-- Meridian's legacy EIP-3009 / forwarder compatibility
-
-## Common Mistakes
-
-1. **Wrong decimals**: USDm is 18 decimals, not 6.
-   `1 USDm = 1000000000000000000` (1e18), not 1000000.
-
-2. **Approving the wrong contract**: Approve Permit2
-   (`0x00000000...78BA3`), not the proxy or the seller.
-
-3. **Using the standard x402 library without config**:
-   The x402 TypeScript SDK defaults to USDC/6 decimals.
-   Override the asset address and decimal handling for
-   USDm.
-
-4. **Forgetting the one-time Permit2 approval**: The
-   buyer's first payment will fail if they haven't
-   approved Permit2 to spend their USDm.
-
-5. **Using this guide for Meridian-specific wiring**:
-   Meridian is the managed alternative when you do not
-   want to self-settle. It uses its own
-   facilitator-backed flow and `/v1/settle` API. Use
-   `meridian.md` for Meridian integrations.
+- legacy `X-PAYMENT` JSON assembled by hand;
+- a raw `settle(...)` ABI copied without matching the installed x402 scheme;
+- hardcoded proxy addresses treated as sufficient integration evidence;
+- a random timestamp used as a Permit2 nonce without collision analysis;
+- unlimited token approval as an unquestioned default;
+- facilitator support inferred from an aggregator listing.

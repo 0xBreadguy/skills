@@ -29,9 +29,12 @@ This is **not same-transaction randomness**. It is an async commit/reveal patter
 ## Recommended API
 
 Use:
-- `verifyNormalized(uint64 round, bytes sig)`
+- `verifyNormalized(uint64 round, bytes sig) -> (bool, bytes32, bytes32)`
 
-Prefer it over raw verification helpers because it gives canonical, encoding-invariant randomness suitable for consumption.
+Prefer it over raw verification helpers because it returns canonical,
+encoding-invariant hashes. The tuple is `(ok, normalizedRoundHash,
+chainScopedHash)`; application randomness should normally use the chain-scoped
+hash after checking `ok`.
 
 ## Mental model
 
@@ -50,6 +53,8 @@ If the round is already known, users can selectively proceed only when the outco
 
 Rule:
 - compute a round whose publish time is strictly in the future
+- use at least `currentRound + 2` as the normal low-latency margin against a
+  round becoming producible while the commit transaction is being included
 - reject reveals for any round other than the committed round
 
 ### 2. Lock every outcome-relevant input at commit time
@@ -149,6 +154,7 @@ When asked to build with MegaETH randomness:
 - recommend commit/reveal, not same-tx randomness
 - insist on locking all outcome-relevant inputs at commit time
 - prefer `verifyNormalized`
+- check the returned boolean and use the intended returned hash
 - call out keeper/relayer requirements
 - warn against using already-published rounds
 - explain that 3 seconds is the drand cadence floor, not something MegaETH can trivially reduce

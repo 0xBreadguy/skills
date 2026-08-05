@@ -178,10 +178,15 @@ await mega.initialise({
 ```
 
 {% hint style="warning" %}
-Your `sponsorUrl` endpoint is called based on the selected sponsorship mode. Enforce rate limits, allowlists, and budget caps — never run an unrestricted sponsor policy.
+Your `sponsorUrl` endpoint is called based on the selected sponsorship mode.
+Decode the signed operation and enforce every inner target, selector, value,
+relevant argument, sender, and chain, plus rate limits and budget caps. Never
+authorize a separate client-supplied target or run an unrestricted sponsor
+policy.
 {% endhint %}
 
-Full implementation details: [Paymaster Guide →](paymaster-setup.md).
+Full implementation details live in the `moss-wallet-sdk` skill's
+[Paymaster Guide](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-sdk/references/paymaster.md).
 
 ### 8. Server-Side Verification
 
@@ -224,4 +229,7 @@ await verifySignature(config, {
 | `DIFFERENT_MESSAGE` | Signed payload does not match what your backend generated. | Reject request and issue a fresh challenge. |
 | `INVALID_SIGNATURE` | Signature does not match payload. | Reject request and require re-sign. |
 
-For agent-driven flows with delegated permissions, see [AI Agent Guide](ai-agent-guide.md). For full method-by-method reference, see [Methods Reference](methods.md).
+For agent-driven flows with delegated permissions, use the `moss-wallet-sdk`
+[agent patterns](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-sdk/references/permissions/agent-patterns.md).
+Its [method reference](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-sdk/references/methods-reference.md)
+covers the SDK surface.

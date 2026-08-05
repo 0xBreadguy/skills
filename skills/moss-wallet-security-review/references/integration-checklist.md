@@ -44,7 +44,8 @@ Gas is abstracted through the relay and smart account infrastructure. Users can 
 
 - [ ] Choose primary path: user-paid token gas or partner sponsorship (`app-only`, `explicit`, `everything`).
 - [ ] Define sponsorship budget ceilings and alert thresholds.
-- [ ] If using external paymaster, define rate limits and contract policy checks.
+- [ ] If using an external paymaster, decode the signed operation and enforce
+      every inner call, sender, chain, budget, and rate limit server-side.
 - [ ] Confirm user messaging for "who pays gas" across all key flows.
 
 ### 4. Security and Compliance
@@ -63,8 +64,8 @@ Gas is abstracted through the relay and smart account infrastructure. Users can 
 
 ## Related
 
-- [Quickstart](quickstart.md) — install through first transaction.
-- [Paymaster Setup](paymaster-setup.md) — implementation guide for built-in and external sponsorship paths.
+- The `moss-wallet-sdk` [Quickstart](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-sdk/references/quickstart.md) covers install through first transaction.
+- Its [Paymaster Setup](https://github.com/megaeth-labs/skills/blob/main/skills/moss-wallet-sdk/references/paymaster/paymaster-setup.md) covers built-in and external sponsorship paths.
 - [Best Practices](best-practices.md) — security patterns and permission defaults for production.
 
 For scoping conversations: [integrations@megaeth.com](mailto:integrations@megaeth.com?subject=MOSS%20Integration%20Scoping%20Call).

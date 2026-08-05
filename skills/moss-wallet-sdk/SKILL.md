@@ -23,8 +23,9 @@ and Privy migration skills.
 - The core package exports `mega`; React apps can use
   `@megaeth-labs/wallet-sdk-react`; wagmi apps can use the MOSS wagmi
   connector.
-- Methods resolve to explicit statuses. Always branch on returned status and
-  treat `cancelled` as neutral.
+- Transaction and signing methods return explicit statuses. Branch on the
+  documented result and treat `cancelled` as neutral. Lifecycle/setup and read
+  methods can still reject for configuration, transport, or input failures.
 - Browser/passkey flows require a secure context and correct origin.
 
 Read [references/behavioral-rules.md](references/behavioral-rules.md) before
@@ -55,6 +56,7 @@ npm install @megaeth-labs/wallet-server-verify
 
 ```typescript
 import { mega } from '@megaeth-labs/wallet-sdk';
+import { parseEther } from 'viem';
 
 await mega.initialise({ network: 'mainnet', logging: 'error' });
 
@@ -64,8 +66,9 @@ if (connected.status !== 'connected' || !connected.address) {
 }
 
 const result = await mega.transfer({
+  type: 'native',
   to: '0xRecipient',
-  amount: '0.01',
+  amount: parseEther('0.01').toString(),
 });
 
 switch (result.status) {
@@ -74,7 +77,7 @@ switch (result.status) {
   case 'cancelled':
     break;
   case 'error':
-    throw new Error(result.error?.message ?? 'MOSS transfer failed');
+    throw new Error(result.error ?? 'MOSS transfer failed');
 }
 ```
 

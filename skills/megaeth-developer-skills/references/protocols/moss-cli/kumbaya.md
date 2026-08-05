@@ -3,18 +3,14 @@
 Use this only for `mega moss` execution guidance. For dApp developer
 integration, read `megaeth-developer-skills` protocol references.
 
-## Source Status
+## Sources
 
-This file adapts `megaeth-ai-developer-skills/kumbaya-dex.md` into scoped
-MOSS CLI execution patterns. Verify Kumbaya addresses, ABIs, package exports,
-and quote behavior against official Kumbaya sources before value-bearing
-execution.
-
-Do not use Awesome MegaETH AI or MTRKR MCP as execution source-of-truth. MTRKR,
-if present, is an unverified external read-only tooling candidate; do not
-recommend or use it unless due diligence confirms installation, auth/payment
-requirements, privacy behavior, read-only behavior, tool schemas, and output
-reliability.
+These constants and ABIs were checked against the protocol-owned
+[Kumbaya integrator kit](https://github.com/Kumbaya-xyz/integrator-kit). Re-check
+that source and deployed bytecode before value-bearing execution. Kumbaya's
+separate [agent kit](https://github.com/Kumbaya-xyz/kumbaya-agent-kit) can be
+used when its skills or MCP tools are deliberately installed; it is not bundled
+with this Markdown skill.
 
 ## Mainnet Constants
 

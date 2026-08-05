@@ -1,127 +1,94 @@
-# Storage Optimization
+# Storage Design On MegaETH
 
-## The Problem
+MegaETH does not charge a blanket fixed price per new storage slot. A
+zero-to-nonzero SSTORE pays normal EVM compute gas plus dynamic storage gas:
 
-MegaETH charges high gas for new storage slot creation to prevent state bloat:
-
+```text
+20,000 * (SALT bucket multiplier - 1)
 ```
-SSTORE (0 → non-zero): 2,000,000 gas × bucket_multiplier
-```
 
-The bucket multiplier scales with usage (1×, 2×, 4×, 8×...). This makes Solidity mappings with dynamic keys expensive.
+At multiplier 1 the additional storage charge is zero. At larger multipliers
+it rises with bucket capacity. Each new slot also counts toward data size, KV
+updates, and the 1,000-entry state-growth limit.
 
-## Solution 1: Solady RedBlackTreeLib
+## Design Rules
 
-Replace Solidity mappings with [Solady's RedBlackTreeLib](https://github.com/Vectorized/solady/blob/main/src/utils/RedBlackTreeLib.sol):
+1. Use a MegaETH RPC for `eth_estimateGas`; do not estimate the SALT multiplier
+   yourself.
+2. Avoid unbounded state growth. Bound loops, arrays, batch sizes, and
+   user-created records even when the current gas estimate is cheap.
+3. Reuse an existing nonzero slot when the data model naturally permits it.
+   Deleting a slot and later setting it nonzero can incur a fresh storage-gas
+   charge, and storage gas from the earlier write is not refunded.
+4. Use transient storage for transaction-scoped state and memory for
+   call-scoped state.
+5. Keep large immutable payloads offchain unless onchain availability is an
+   explicit product requirement.
+
+Do not replace every mapping with a custom tree merely because it is a mapping.
+Mappings are standard and often appropriate. A packed array, free list, ring
+buffer, or tree only helps when it matches access patterns and is validated
+under realistic churn, deletion, and adversarial workloads.
+
+## Slot-Reuse Example
 
 ```solidity
-import {RedBlackTreeLib} from "solady/src/utils/RedBlackTreeLib.sol";
+uint256[100] private buffer;
+uint256 private head;
 
-contract StorageOptimized {
-    using RedBlackTreeLib for RedBlackTreeLib.Tree;
-    RedBlackTreeLib.Tree private _tree;
-
-    // Tree manages contiguous storage slots [from, to)
-    // Insert: allocates slot at index `to`
-    // Remove: swap-removes with slot at `to - 1`
-    // Result: slots are reused, no new allocations
+function append(uint256 value) external {
+    require(value != 0, "zero reserved for empty");
+    buffer[head] = value;
+    head = (head + 1) % buffer.length;
 }
 ```
 
-**Key insight:** Avoid resetting the last slot immediately — reuse it for the next insert.
+This bounds state growth. It does not guarantee a particular gas price; remote
+estimation remains required.
 
-**Demo available:** MegaETH engineers have a migration demo. Contact team for access.
+## Large Immutable Data
 
-## Solution 2: Storage Slot Reuse
+SSTORE2-style storage puts bytes in deployed contract code. It trades storage
+slots for code deposit:
 
-Design contracts to reuse existing slots:
+- writes pay contract-creation costs plus `10,000` storage gas per deployed
+  byte
+- reads use `EXTCODESIZE`/`EXTCODECOPY` and still consume onchain compute gas
+- runtime code is limited to 512 KiB and initcode to 536 KiB
+- deployment also counts toward data-size and state-growth limits
 
-```solidity
-// Bad: constantly allocating new slots
-mapping(uint256 => uint256) public data;
-function process(uint256 key, uint256 value) {
-    data[key] = value; // New slot each unique key
-    delete data[key];  // Slot freed but not reused
-}
+This can be useful for write-once data but is not free or automatically cheaper.
+Compare an actual MegaETH RPC estimate against storage, calldata, blobs, IPFS,
+or another data-availability design.
 
-// Better: fixed-size array with circular buffer
-uint256[100] public buffer;
-uint256 public head;
-function process(uint256 value) {
-    buffer[head] = value; // Reuses existing slot
-    head = (head + 1) % 100;
-}
-```
+## Offchain And Commitment Patterns
 
-## Solution 3: ZK Compression
+For data that contracts do not need directly, store a hash or content URI
+onchain and keep the payload in an appropriate external system. For verifiable
+state machines, store a commitment and verify proofs onchain. These designs
+trade implementation and proof complexity for bounded chain state; they are
+not universal defaults.
 
-For apps with large state requirements:
+## Profiling
 
-1. Store only a hash/commitment on-chain
-2. Provide pre-state + proof with each transaction
-3. Contract verifies proof, applies state transition, stores new commitment
-
-```solidity
-contract ZKCompressed {
-    bytes32 public stateRoot;
-
-    function update(
-        bytes32 newRoot,
-        bytes calldata preState,
-        bytes calldata proof
-    ) external {
-        require(verify(stateRoot, preState, proof), "Invalid proof");
-        stateRoot = newRoot; // Only 1 storage slot
-    }
-}
-```
-
-**Trade-off:** More compute gas, much less storage gas. Good fit for MegaETH since compute is cheap.
-
-## Solution 4: Off-Chain Storage
-
-For large static data:
-- Use IPFS/Arweave for storage
-- Store content hash on-chain
-- Verify in contract if needed
-
-```solidity
-contract HybridStorage {
-    mapping(bytes32 => bool) public verified;
-
-    function verifyData(bytes32 hash, bytes calldata data) external {
-        require(keccak256(data) == hash, "Hash mismatch");
-        verified[hash] = true;
-    }
-}
-```
-
-## Gas Cost Reference
-
-| Operation | Standard EVM | MegaETH |
-|-----------|-------------|---------|
-| SSTORE (0→non-zero) | 20,000 | 2,000,000 × multiplier |
-| SSTORE (non-zero→non-zero) | 5,000 | ~100-2,100 |
-| SLOAD (warm) | 100 | 100 |
-| SLOAD (cold) | 2,100 | 2,100 |
-
-## State Size Considerations
-
-MegaETH's state trie scales to 1+ TB but storage remains a scarce resource. At $0.10 per new slot:
-- 1 billion slots = 64 GB state = $100M in fees
-
-**Future:** State rent and state expiry mechanisms planned.
-
-## Debugging Storage Costs
-
-Profile gas by opcode:
+Use `mega-evme` when a transaction's storage or resource behavior needs
+explanation:
 
 ```bash
-# Get trace
-mega-evme replay <txhash> --trace --trace.output trace.json
-
-# Profile opcodes
-python trace_opcode_gas.py trace.json
+mega-evme replay 0xTransactionHash \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --trace \
+  --tracer opcode \
+  --trace.output trace.json
 ```
 
-Look for high SSTORE counts with 0→non-zero transitions.
+Inspect SSTORE, CREATE/CREATE2, LOG, calldata, and state-growth behavior. Do not
+use historical claims such as "2M gas per slot," "$0.10 per slot," or planned
+state-rent figures as current implementation facts.
+
+## Sources
+
+- `https://docs.megaeth.com/dev/execution/gas-model`
+- `https://docs.megaeth.com/dev/execution/resource-limits`
+- `https://docs.megaeth.com/spec/megaevm/dual-gas-model`
+- `https://docs.megaeth.com/spec/megaevm/resource-accounting`

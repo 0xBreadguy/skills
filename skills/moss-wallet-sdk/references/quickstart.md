@@ -69,7 +69,7 @@ if (auth.status === 'success' && auth.jwt) {
 
 ## Step 5 — Add Deposit Flow (Recommended)
 
-The built-in MOSS deposit flow is faster to implement and maintain than a custom funding flow. Full guidance: [Deposit Flows (Unifold) →](deposit-flows.md).
+The built-in MOSS deposit flow is faster to implement and maintain than a custom funding flow. Full guidance: [Deposit Flows (Unifold) →](./paymaster/deposit-flows.md).
 
 ```typescript
 const state = await mega.status();
@@ -107,11 +107,11 @@ Users can pay gas with **ETH** or enabled stablecoins (currently **USDm** and **
 | Partner sponsorship (`app-only` default) | Developer | Configurable by mode + sponsor policy |
 | Partner sponsorship (`explicit` / `everything`) | Developer | Tighter or broader sponsorship control |
 
-Full sponsorship setup: [Paymaster Guide →](paymaster-setup.md).
+Full sponsorship setup: [Paymaster Guide →](./paymaster/paymaster-setup.md).
 
 ## You're Live
 
-From here, dig into the [Methods Reference](methods.md), [React Hooks](react/overview.md) for hook-based flows, or [Smart Approvals](core-sdk/permissions.md) to grant session permissions so approved actions run without repeated prompts.
+From here, dig into the [Methods Reference](./methods-reference.md), [React Hooks](./react.md) for hook-based flows, or [Smart Approvals](./permissions.md) to grant session permissions so approved actions run without repeated prompts.
 
 ## Which Package Do I Need?
 

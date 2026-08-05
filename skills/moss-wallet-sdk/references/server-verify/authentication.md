@@ -89,11 +89,7 @@ If your auth stack uses Privy, map this into your backend auth exchange layer:
 Do not trust client-only auth state. Treat MOSS JWT validation and app session issuance as backend responsibilities.
 {% endhint %}
 
-## Coming Soon
-
-Social login flows (Google, Apple, email) are on the roadmap but not yet shipped. This page will update with API contracts when they release.
-
 ## Related
 
-- [`mega.authenticate()`](methods/authenticate.md) — full method signature and response contract.
+- [`mega.authenticate()`](../methods-reference.md#megaauthenticate) — full method signature and response contract.
 - [Server Verify](server-verify.md) — explicit message-signature verification when you need it instead of JWT auth.

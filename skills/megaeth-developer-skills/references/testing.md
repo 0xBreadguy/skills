@@ -1,15 +1,33 @@
-# Testing & Debugging Guide
+# Testing and Debugging
 
-This file is the broad testing/debugging entrypoint.
+Use this guide for test strategy and first-line troubleshooting. For local
+transaction replay and MegaEVM-specific traces, continue with
+[`mega-evme.md`](mega-evme.md).
 
-- Use this file for **Foundry, general testing patterns, and common troubleshooting**.
-- Use [`mega-evme.md`](mega-evme.md) when the task is specifically about **local replay, trace analysis, MegaEVM-specific resource accounting, or spec-aware debugging**.
+## Test against MegaETH semantics
 
-## mega-evme CLI
+MegaEVM has multidimensional resource accounting and dynamic storage gas that a
+generic local EVM may not reproduce. Keep normal unit tests in Foundry, but run
+integration tests and deployment dry runs against the target MegaETH RPC.
 
-The official debugging tool for MegaETH transactions.
+```bash
+forge test
+forge test --fork-url https://carrot.megaeth.com/rpc
 
-### Installation
+# Deployment scripts should use the node's estimate instead of Foundry's local
+# simulation when MegaEVM accounting makes the local estimate disagree.
+forge script script/Deploy.s.sol:Deploy \
+  --rpc-url https://carrot.megaeth.com/rpc \
+  --broadcast --skip-simulation
+```
+
+Do not copy a gas limit from a generic EVM simulation. Use
+`eth_estimateGas` on the target network and preserve a reasonable operational
+margin.
+
+## Replay a transaction
+
+Build the reference debugger from the MegaEVM repository:
 
 ```bash
 git clone https://github.com/megaeth-labs/mega-evm
@@ -17,162 +35,97 @@ cd mega-evm/bin/mega-evme
 cargo build --release
 ```
 
-### Replay Transactions
+Then replay under the hardfork selected from the transaction's chain and block
+timestamp:
 
 ```bash
-# Basic replay
-mega-evme replay <txhash> --rpc https://mainnet.megaeth.com/rpc
+mega-evme replay <TX_HASH> \
+  --rpc https://mainnet.megaeth.com/rpc
 
-# With execution trace
-mega-evme replay <txhash> --trace --trace.output trace.json --rpc <endpoint>
+mega-evme replay <TX_HASH> \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --trace --tracer opcode \
+  --trace.opcode.enable-return-data \
+  --trace.output trace.json
 
-# With call tracer
-mega-evme replay <txhash> --trace --tracer call --trace.output calls.json
+mega-evme replay <TX_HASH> \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --trace --tracer call \
+  --trace.output calls.json
 ```
 
-**Docs:** https://github.com/megaeth-labs/mega-evm/tree/main/bin/mega-evme
+See [`mega-evme.md`](mega-evme.md) for capture/offline replay and spec
+overrides.
 
-## Gas Profiling
-
-### Opcode-Level Analysis
+## Useful RPC checks
 
 ```bash
-# 1. Get debug trace
-cast run <txhash> --rpc-url <vip-endpoint> > trace.json
+# Current and pending nonces
+cast nonce <ADDRESS> --rpc-url https://mainnet.megaeth.com/rpc --block latest
+cast nonce <ADDRESS> --rpc-url https://mainnet.megaeth.com/rpc --block pending
 
-# 2. Profile opcodes
-python scripts/trace_opcode_gas.py trace.json
-```
+# Remote gas estimate
+cast estimate <TO> <SIGNATURE> [ARGS...] \
+  --from <SENDER> --rpc-url https://mainnet.megaeth.com/rpc
 
-**Script:** https://github.com/megaeth-labs/mega-evm/blob/main/scripts/trace_opcode_gas.py
-
-### Example Output
-
-```
-op              count      total         avg      min      max
-SSTORE             29      85400      2944.8      100    22100
-SLOAD             473     121300       256.4      100     2100
-LOG2               25     598601     23944.0    14257    25521
-KECCAK256         288      12108        42.0       36       60
-```
-
-## Common Issues
-
-### "Intrinsic Gas Too Low"
-
-Local gas estimation uses standard EVM costs. MegaEVM differs.
-
-**Fix:**
-```bash
-# Foundry: skip local simulation
-forge script Deploy.s.sol --gas-limit 5000000 --skip-simulation
-
-# Or use higher hardcoded limit
-```
-
-### "Nonce Too Low"
-
-With `realtime_sendRawTransaction`, this can mean:
-1. Tx already executed (check receipt)
-2. Race condition with pending tx
-
-**Debug:**
-```bash
-# Check current nonce
-cast nonce <address> --rpc-url <endpoint> --block pending
-```
-
-### "Block Pruned" on eth_call
-
-Public endpoint only keeps ~15 days of state.
-
-**Solutions:**
-- Use Alchemy/QuickNode for historical calls
-- Run archive node
-- Use VIP endpoint with longer retention
-
-### WebSocket Disconnections
-
-Connection drops after idle period.
-
-**Fix:** Send keepalive every 30s:
-```javascript
-setInterval(() => {
-  ws.send(JSON.stringify({
-    jsonrpc: '2.0',
-    method: 'eth_chainId',
-    params: [],
-    id: Date.now()
-  }));
-}, 30000);
-```
-
-### Volatile Data Access Limit
-
-Error after using `block.timestamp` + heavy computation.
-
-**Cause:** 20M **total** compute gas cap (retroactive) when any block metadata opcode is accessed. The cap applies to the entire transaction's compute gas, not just gas used after the opcode.
-
-**Fix:** Keep total compute gas under 20M in transactions that touch block metadata. For heavy computation + time-awareness, split into separate transactions or use the timestamp oracle.
-
-## Cast Commands
-
-```bash
-# Estimate gas
-cast estimate --from <addr> --to <addr> --value 0.001ether \
-  --rpc-url https://mainnet.megaeth.com/rpc
-
-# Call at specific block
-cast call --block <number> <contract> "method(args)" \
-  --rpc-url https://mainnet.megaeth.com/rpc
-
-# Get transaction details
-cast tx <txhash> --rpc-url https://mainnet.megaeth.com/rpc
+# Transaction and receipt
+cast tx <TX_HASH> --rpc-url https://mainnet.megaeth.com/rpc
+cast receipt <TX_HASH> --rpc-url https://mainnet.megaeth.com/rpc
 
 # Decode calldata
-cast 4byte-decode <calldata>
+cast 4byte-decode <CALLDATA>
 ```
 
-## HAR Analysis
+The public RPC exposes mined-transaction and block tracing methods described in
+[`rpc.md`](rpc.md). It does not expose `debug_traceCall`.
 
-For debugging frontend RPC patterns:
+## Common failures
 
-```bash
-# Export HAR from browser devtools, then:
-python parse_eth_rpc_har.py export.har > calls.csv
-python method_activity_timeline.py calls.csv
-```
+### Intrinsic gas too low
 
-Identifies:
-- Unnecessary RPC calls
-- Batching opportunities
-- Slow methods blocking UX
+Re-estimate against the target MegaETH RPC. If a Foundry script fails during
+local simulation but the target node estimates successfully, use
+`--skip-simulation` so the broadcast path takes the remote estimate. Do not
+solve this by assuming a universal fixed transaction gas limit.
 
-## Monitoring Latency
+### Nonce too low after real-time submission
 
-```bash
-# Detailed timing breakdown
-curl -i -X POST https://mainnet.megaeth.com/rpc \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
-  -w "dns: %{time_namelookup} | connect: %{time_connect} | total: %{time_total}\n"
-```
+`realtime_sendRawTransaction` waits for execution, but a timeout is
+inconclusive. Before replacing or resending, query the receipt and both the
+latest and pending nonce. The original transaction may already have executed.
 
-## Block Explorers
+### Historical state unavailable
+
+There is no documented public-RPC retention duration. If an old block or state
+query fails, use a provider that explicitly offers the required archive data or
+run an archive-capable node. Do not rely on an assumed 15-day window.
+
+### WebSocket disconnects
+
+The public WebSocket endpoint has a 60-second idle timeout. Send a cheap request
+such as `eth_chainId` every 30 seconds, reconnect with backoff, and recreate
+subscriptions after reconnecting.
+
+### Gas detention or resource-limit failure
+
+The first volatile-data access can cap the transaction's *remaining* compute
+budget to at most 20 million additional gas under current rules. It does not
+retroactively impose a 20-million total-transaction cap. Replay with
+`mega-evme`, then inspect compute, data, KV-update, and state-growth usage rather
+than treating every failure as ordinary out-of-gas.
+
+## Explorer links
 
 | Network | Explorer |
-|---------|----------|
+| --- | --- |
 | Mainnet | https://mega.etherscan.io |
-| Testnet | https://megaeth-testnet-v2.blockscout.com |
+| Testnet | https://testnet-mega.etherscan.io |
 
-Etherscan may lag a few blocks behind real-time.
+Explorer indexing can lag chain RPC state. Use the receipt from the RPC as the
+primary check for transaction status.
 
-## Getting Help
+## Escalation bundle
 
-1. Check transaction on explorer
-2. Replay with mega-evme locally
-3. Profile gas by opcode
-4. Contact MegaETH team with:
-   - Transaction hash
-   - Error message
-   - Reproduction steps
+When reporting a reproducible execution problem, include the transaction hash,
+network and RPC URL, block number, exact error, minimal reproduction, tool
+versions, and any `mega-evme` trace or capture artifact.

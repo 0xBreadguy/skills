@@ -1,224 +1,147 @@
-# Foundry Configuration for MegaETH
+# Foundry On MegaETH
 
-> **Source**: Foundry patterns from [getfoundry.sh/introduction/prompting](https://getfoundry.sh/introduction/prompting/), adapted for MegaETH's multidimensional gas model and chain-specific requirements.
+Foundry works for compilation, tests, scripts, broadcasting, and verification.
+Its local EVM does not implement MegaETH storage gas or resource accounting, so
+do not use local simulation as the source of gas limits.
 
-## Project Structure
+## Project Baseline
 
-```
+```text
 project/
-├── foundry.toml
-├── .env.example
-├── src/
-│   ├── interfaces/
-│   └── MyContract.sol
-├── test/
-│   ├── unit/
-│   ├── fuzz/
-│   ├── invariant/
-│   │   └── handlers/
-│   └── fork/
-├── script/
-│   └── Deploy.s.sol
-└── lib/
+|-- foundry.toml
+|-- src/
+|-- test/
+|-- script/
+`-- lib/
 ```
-
-## foundry.toml (MegaETH-ready)
 
 ```toml
 [profile.default]
 src = "src"
 out = "out"
 libs = ["lib"]
-solc_version = "0.8.20"
 optimizer = true
 optimizer_runs = 200
-dynamic_test_linking = true  # 10x+ faster compilation
 
-# Import remappings
-remappings = [
-    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "solady/=lib/solady/"
-]
-
-# Gas reporting
-gas_reports = ["*"]
-
-# Fuzz testing
-[fuzz]
-runs = 1000
-max_test_rejects = 65536
-
-# Invariant testing
-[invariant]
-runs = 256
-depth = 15
-fail_on_revert = false
-show_metrics = true
-
-# ⚠️ MegaETH RPC endpoints
 [rpc_endpoints]
 megaeth = "https://mainnet.megaeth.com/rpc"
 megaeth_testnet = "https://carrot.megaeth.com/rpc"
-
-# ⚠️ MegaETH explorer verification
-[etherscan]
-megaeth = { key = "${MEGAETH_ETHERSCAN_KEY}", url = "https://mega.etherscan.io/api" }
 ```
 
-## Naming Conventions
+Choose a Solidity version based on the project's dependencies. `via_ir` is a
+normal Solidity compiler option, not a MegaETH-incompatible feature. If it is
+needed for stack depth or optimization, test the exact compiler version and
+deployed bytecode just as on any EVM chain.
 
-> Source: [Foundry Prompting Guide](https://getfoundry.sh/introduction/prompting/) — standard Foundry conventions.
+## Testing
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Contract files | PascalCase | `MyVault.sol` |
-| Interface files | I-prefix | `IMyVault.sol` |
-| Test files | `.t.sol` suffix | `MyVault.t.sol` |
-| Script files | `.s.sol` suffix | `Deploy.s.sol` |
-| Functions | mixedCase | `getUserBalance()` |
-| Constants | SCREAMING_SNAKE | `MAX_SUPPLY` |
-| Immutables | SCREAMING_SNAKE | `DEPLOYMENT_TIME` |
-| Structs/Enums | PascalCase | `UserInfo`, `Status` |
+Use Foundry unit, fuzz, invariant, and fork tests for contract logic:
 
-### Test Naming
-
-```
-test_FunctionName_Condition       — unit tests
-test_RevertWhen_Condition         — revert tests
-testFuzz_FunctionName             — fuzz tests
-invariant_PropertyName            — invariant tests
-testFork_Scenario                 — fork tests
+```bash
+forge test
+forge test --fork-url https://carrot.megaeth.com/rpc
 ```
 
-## Deployment Script (MegaETH)
+A Foundry fork reads MegaETH state but executes tests in Foundry's local EVM.
+It therefore does not reproduce MegaETH storage gas, gas detention, or all
+resource limits. Treat local gas snapshots as comparative development signals,
+not deployment limits. Use remote estimation and `mega-evme` for MegaEVM
+behavior.
+
+## Deployment Script
 
 ```solidity
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
-import {MyContract} from "src/MyContract.sol";
+import {Script} from "forge-std/Script.sol";
+import {MyContract} from "../src/MyContract.sol";
 
-contract DeployScript is Script {
-    function run() public {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-
-        vm.startBroadcast(deployerPrivateKey);
-
-        MyContract myContract = new MyContract();
-
-        console.log("Deployed to:", address(myContract));
-
+contract Deploy is Script {
+    function run() external returns (MyContract deployed) {
+        vm.startBroadcast();
+        deployed = new MyContract();
         vm.stopBroadcast();
     }
 }
 ```
 
-### Deploy Commands
+Use a keystore, hardware/external signer, or Foundry's interactive prompt. Do
+not commit a raw private key or include it in shell history.
+
+## Broadcast With Remote Estimation
+
+`forge script` normally simulates with its local EVM before broadcasting. Pass
+`--skip-simulation`; Foundry then estimates broadcast transactions through the
+remote RPC:
 
 ```bash
-# ⚠️ CRITICAL: Always use --skip-simulation on MegaETH
-# Foundry's local simulation uses standard EVM gas costs,
-# which are WRONG for MegaEVM (different intrinsic gas, storage gas dimension).
-
-# Simulate locally (will show wrong gas — use only for logic check)
-forge script script/Deploy.s.sol
-
-# Deploy to testnet (skip simulation + set gas limit)
-forge script script/Deploy.s.sol \
+forge script script/Deploy.s.sol:Deploy \
   --rpc-url megaeth_testnet \
   --broadcast \
   --skip-simulation \
-  --gas-limit 5000000 \
-  -vvvv \
   --interactives 1
+```
 
-# Deploy to mainnet + verify on mega.etherscan.io
-forge script script/Deploy.s.sol \
+For mainnet:
+
+```bash
+forge script script/Deploy.s.sol:Deploy \
   --rpc-url megaeth \
   --broadcast \
-  --verify \
   --skip-simulation \
-  --gas-limit 5000000 \
   --interactives 1
-
-# Resume failed deployment
-forge script script/Deploy.s.sol \
-  --rpc-url megaeth \
-  --resume
 ```
+
+Do not use `forge script --gas-limit` as though it were a per-transaction
+broadcast limit; in current Foundry it aliases the local block gas-limit option.
+
+`forge create` and `cast send` use remote `eth_estimateGas` by default:
+
+```bash
+forge create src/MyContract.sol:MyContract \
+  --rpc-url https://carrot.megaeth.com/rpc \
+  --interactive
+
+cast send 0xContract 'method(uint256)' 42 \
+  --rpc-url https://mainnet.megaeth.com/rpc \
+  --interactive
+```
+
+If the public estimator's 0.5-second CPU budget cannot handle a valid heavy
+transaction, first reproduce it with `mega-evme`. Then either use a provider
+with suitable estimation limits or pass a tested manual limit to `forge create`
+or `cast send` with `--gas-limit`. Avoid generic 5M/500M constants.
 
 ## Verification
 
+MegaETH mainnet is supported by Etherscan V2 under chain ID `4326`:
+
 ```bash
-# Verify existing contract on mega.etherscan.io
-forge verify-contract <address> src/MyContract.sol:MyContract \
+forge verify-contract 0xDeployedAddress src/MyContract.sol:MyContract \
   --chain 4326 \
-  --etherscan-api-key $MEGAETH_ETHERSCAN_KEY \
-  --verifier-url https://mega.etherscan.io/api
+  --etherscan-api-key "$ETHERSCAN_API_KEY"
 ```
 
-## Linting
+For constructor arguments, compiler settings, proxies, and retry behavior,
+follow current Foundry verification documentation. Keep the compiler version,
+optimizer settings, libraries, and constructor arguments identical to the
+broadcast artifact.
 
-```bash
-# Catch security and style issues before deployment
-forge lint
-forge lint --severity high --severity medium
+## Debugging Workflow
 
-# Key lints to watch for:
-# - incorrect-shift: bit shift errors
-# - divide-before-multiply: precision loss
-```
+1. Read the failed receipt and trace the mined transaction through the public
+   `debug_traceTransaction` endpoint.
+2. Replay it with `mega-evme` when MegaETH accounting or a what-if override is
+   needed.
+3. Turn the failure into a focused Foundry regression test.
+4. Re-estimate against the target MegaETH RPC before rebroadcasting.
 
-> Source: `forge lint` added in Foundry v1.0, from [Foundry docs](https://getfoundry.sh/forge/linting).
+## Sources
 
-## ⚠️ Critical: Never Use `via_ir`
-
-`via_ir=true` can **silently break function return values** — functions may return 0 instead of the correct value with no compiler error and no test failure on simple cases. This has been confirmed multiple times on MegaETH contracts.
-
-```toml
-# ❌ NEVER — can silently corrupt return values
-# via_ir = true
-
-# ✅ Safe default
-optimizer = true
-optimizer_runs = 200
-```
-
-## Large Contract Deployment (500M Gas)
-
-Contracts with 25KB+ bytecode need **500M gas limit** on MegaETH, not 5M. The `forge script` examples above use 5M which works for small contracts but will fail with "intrinsic gas too low" for real-sized contracts.
-
-```bash
-# For large contracts, use cast send directly (more reliable than forge script)
-BYTECODE=$(forge inspect MyContract bytecode)
-ARGS=$(cast abi-encode "constructor(address)" 0x1234...)
-
-cast send --rpc-url https://mainnet.megaeth.com/rpc \
-  --private-key $PK \
-  --gas-limit 500000000 \
-  --create "0x${BYTECODE#0x}${ARGS#0x}"
-```
-
-### Why `cast send --create` over `forge script`?
-
-`forge script --broadcast` has known issues on MegaETH:
-- `--rpc-url` / `-r` flags are sometimes ignored (use `--fork-url` or `ETH_RPC_URL` env var)
-- Gas estimation produces values too low for large bytecode
-- `--gas-limit` flag on forge script applies to simulation, not always to broadcast
-
-`cast send --create` with explicit gas limit is the most reliable deployment method.
-
-## Environment Setup
-
-```bash
-# .env file
-MEGAETH_RPC_URL=https://mainnet.megaeth.com/rpc
-MEGAETH_TESTNET_RPC_URL=https://carrot.megaeth.com/rpc
-MEGAETH_ETHERSCAN_KEY=your_key_here
-PRIVATE_KEY=0x...  # Or use --interactives 1
-
-# Install dependencies
-forge install OpenZeppelin/openzeppelin-contracts
-forge install vectorized/solady  # For RedBlackTreeLib, SSTORE2, ERC6909
-```
+- `https://docs.megaeth.com/dev/send-tx/gas-estimation`
+- `https://docs.megaeth.com/dev/send-tx/debugging`
+- `https://getfoundry.sh/forge/deploying`
+- `https://getfoundry.sh/reference/forge/forge-script`
+- `https://getfoundry.sh/reference/forge/forge-create`
+- `https://getfoundry.sh/reference/cast/cast-send`

@@ -3,17 +3,18 @@
 Use this for dApp developer integration guidance. For `mega moss` scoped-key
 execution recipes, read `references/protocols/moss-cli/kumbaya.md`.
 
-## Source Status
+## Sources
 
-This file adapts the Kumbaya material from
-`megaeth-ai-developer-skills/kumbaya-dex.md` so the Awesome MegaETH AI protocol
-coverage is represented here. Treat it as implementation guidance that still
-needs verification against official Kumbaya docs, package exports, or the
-Kumbaya integrator kit before production or value-bearing writes.
+The contract tables, init-code hash, and ABIs below were checked against the
+protocol-owned [Kumbaya integrator kit](https://github.com/Kumbaya-xyz/integrator-kit).
+Kumbaya also maintains a
+[developer agent kit](https://github.com/Kumbaya-xyz/kumbaya-agent-kit) with
+separately installable skills and MCP tooling. Pin the source revision used by
+an integration and re-check deployed bytecode before a value-bearing write.
 
-Do not use Awesome MegaETH AI or MTRKR MCP as source-of-truth for executable
-Kumbaya calldata. MTRKR, if available, is only an external read-only tooling
-candidate and needs due diligence before recommendation or use.
+Awesome MegaETH AI and partner skills remain discovery/attribution sources, not
+authorities over current Kumbaya contracts. MTRKR is not needed for these
+recipes and must be independently evaluated before use.
 
 ## Network
 
@@ -24,7 +25,7 @@ candidate and needs due diligence before recommendation or use.
 
 ## Mainnet Contracts
 
-Verify these addresses against official Kumbaya sources before executing:
+Current protocol-owned integrator-kit values:
 
 | Contract | Address |
 | --- | --- |
@@ -143,10 +144,15 @@ production unless the user explicitly accepts that risk.
 ## Pool Discovery
 
 Kumbaya pool address computation uses CREATE2 with the Kumbaya factory and
-Kumbaya init code hash. The source material uses packed salt encoding:
+Kumbaya init code hash. The pool salt uses ABI encoding:
 
 ```typescript
-import { encodePacked, getCreate2Address, keccak256 } from "viem";
+import {
+  encodeAbiParameters,
+  getCreate2Address,
+  keccak256,
+  parseAbiParameters,
+} from "viem";
 
 const INIT_CODE_HASH =
   "0x851d77a45b8b9a205fb9f44cb829cceba85282714d2603d601840640628a3da7";
@@ -158,15 +164,20 @@ function getKumbayaPoolAddress(factory, tokenA, tokenB, fee) {
       : [tokenB, tokenA];
 
   const salt = keccak256(
-    encodePacked(["address", "address", "uint24"], [token0, token1, fee]),
+    encodeAbiParameters(
+      parseAbiParameters("address, address, uint24"),
+      [token0, token1, fee],
+    ),
   );
 
   return getCreate2Address({ from: factory, salt, bytecodeHash: INIT_CODE_HASH });
 }
 ```
 
-After computing a pool address, read `slot0()` and `liquidity()` before
-building quotes or liquidity UIs.
+The salt must match Solidity `keccak256(abi.encode(token0, token1, fee))`; packed
+encoding produces a different address. After computing a pool address, confirm
+it has code and read `slot0()` and `liquidity()` before building quotes or
+liquidity UIs.
 
 ## Permit2
 

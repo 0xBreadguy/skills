@@ -9,7 +9,9 @@ then executes it through a scoped MOSS delegated key.
 ## Source Of Truth
 
 - Docs: `https://docs.kyberswap.com/developer-guide/aggregator-api/aggregator-api-specification/evm-swaps.md`
-- API base: `https://aggregator-api.kyberswap.com`
+- Preferred API base: `https://api.kyberswap.com/swap`
+- Legacy public base: `https://aggregator-api.kyberswap.com` (stricter rate
+  limits; use only when its current terms fit the task)
 - MegaETH chain path: `megaeth`
 - Native ETH sentinel: `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`
 
@@ -28,9 +30,10 @@ then executes it through a scoped MOSS delegated key.
 Example: swap 100 USDm to another token. Set real token addresses first.
 
 ```bash
-API=https://aggregator-api.kyberswap.com
+API=https://api.kyberswap.com/swap
 CHAIN=megaeth
 CLIENT_ID=megaeth-moss-skills
+: "${KYBER_API_KEY:?Set KYBER_API_KEY for the KyberSwap production gateway}"
 WALLET=$(mega moss whoami --json | jq -r '.account // .address')
 
 TOKEN_IN=0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7
@@ -47,6 +50,7 @@ Fetch route:
 
 ```bash
 curl -sS -G "$API/$CHAIN/api/v1/routes" \
+  -H "X-Api-Key: $KYBER_API_KEY" \
   -H "X-Client-Id: $CLIENT_ID" \
   --data-urlencode "tokenIn=$TOKEN_IN" \
   --data-urlencode "tokenOut=$TOKEN_OUT" \
@@ -78,6 +82,7 @@ jq --arg sender "$WALLET" \
 
 curl -sS "$API/$CHAIN/api/v1/route/build" \
   -H "Content-Type: application/json" \
+  -H "X-Api-Key: $KYBER_API_KEY" \
   -H "X-Client-Id: $CLIENT_ID" \
   --data @kyber-build-body.json \
   > kyber-build.json

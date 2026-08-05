@@ -35,7 +35,7 @@ const VALID_PERIODS = new Set([
 ]);
 
 function isHexAddress(value) {
-  return typeof value === 'string' && /^0x[0-9a-fA-F]+$/.test(value) && value.length > 2;
+  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value);
 }
 
 /**
@@ -51,8 +51,8 @@ function isHexAddress(value) {
  */
 export function buildPermissionPolicy({ calls, spend, ttlSeconds } = {}) {
   // ---- ttlSeconds ----
-  if (typeof ttlSeconds !== 'number' || !Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
-    throw new Error('ttlSeconds must be a positive, finite number (seconds from now).');
+  if (typeof ttlSeconds !== 'number' || !Number.isInteger(ttlSeconds) || ttlSeconds <= 0) {
+    throw new Error('ttlSeconds must be a positive integer (seconds from now).');
   }
 
   // ---- calls ----
@@ -64,7 +64,7 @@ export function buildPermissionPolicy({ calls, spend, ttlSeconds } = {}) {
       throw new Error(`calls[${i}] must be an object with { to, signature }.`);
     }
     if (!isHexAddress(call.to)) {
-      throw new Error(`calls[${i}].to must be a non-empty 0x-prefixed address.`);
+      throw new Error(`calls[${i}].to must be a 20-byte 0x-prefixed address.`);
     }
     if (typeof call.signature !== 'string' || call.signature.trim() === '') {
       throw new Error(
@@ -84,11 +84,17 @@ export function buildPermissionPolicy({ calls, spend, ttlSeconds } = {}) {
       throw new Error(`spend[${i}] must be an object with { limit, period }.`);
     }
     let limit;
+    if (typeof entry.limit === 'number' && !Number.isSafeInteger(entry.limit)) {
+      throw new Error(
+        `spend[${i}].limit must not be an unsafe JavaScript number; ` +
+          `use a bigint or decimal integer string.`,
+      );
+    }
     try {
       limit = BigInt(entry.limit);
     } catch {
       throw new Error(
-        `spend[${i}].limit must be coercible to BigInt (wei). ` +
+        `spend[${i}].limit must be coercible to BigInt (integer base units). ` +
           `Got: ${JSON.stringify(entry.limit)}.`,
       );
     }
@@ -105,7 +111,7 @@ export function buildPermissionPolicy({ calls, spend, ttlSeconds } = {}) {
     if (entry.token !== undefined) {
       if (!isHexAddress(entry.token)) {
         throw new Error(
-          `spend[${i}].token, when set, must be a 0x-prefixed token address ` +
+          `spend[${i}].token, when set, must be a 20-byte 0x-prefixed token address ` +
             `(omit it entirely for the native token).`,
         );
       }

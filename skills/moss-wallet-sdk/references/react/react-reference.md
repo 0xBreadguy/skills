@@ -6,7 +6,7 @@ description: Full reference for @megaeth-labs/wallet-sdk-react — provider setu
 
 # React SDK Reference
 
-Every core SDK method exposed as a React hook. Built on TanStack Query — mutations for actions, queries for reads. For installation, see [Installation](installation.md). For a scannable index of every hook, see [Hooks at a Glance](hooks.md).
+Every core SDK method exposed as a React hook. Built on TanStack Query — mutations for actions, queries for reads. For installation, see [Installation](./provider-setup.md). For a scannable index of every hook, see [Hooks at a Glance](./hooks-at-a-glance.md).
 
 ## Mental Model
 
@@ -136,7 +136,7 @@ return <span>{address} ({network})</span>;
 
 ### `useConnect(): UseMutationResult<ConnectionStatus, Error, void>`
 
-Wraps [`mega.connect()`](../methods/connect.md). Prefer `mutateAsync()` in async UI handlers so you can `await` the result flow.
+Wraps [`mega.connect()`](../methods-reference.md#megaconnect). Prefer `mutateAsync()` in async UI handlers so you can `await` the result flow.
 
 ```tsx
 const { mutateAsync: connect } = useConnect();
@@ -151,7 +151,7 @@ const connectHook = useConnect({
 
 ### `useDisconnect(): UseMutationResult<ConnectionStatus, Error, void>`
 
-Wraps [`mega.disconnect()`](../methods/disconnect.md). Disconnect updates provider status via the SDK status event flow — no manual state sync needed.
+Wraps [`mega.disconnect()`](../methods-reference.md#megadisconnect). Disconnect updates provider status via the SDK status event flow — no manual state sync needed.
 
 ```tsx
 const { mutateAsync: disconnect } = useDisconnect();
@@ -164,7 +164,7 @@ const disconnectHook = useDisconnect({
 
 ### `useTransfer(): UseMutationResult<TransactionResult, Error, TransferRequest>`
 
-Wraps [`mega.transfer()`](../methods/transfer.md). Handle `approved`, `cancelled`, and `error` states explicitly — see [Transaction Result](../methods/transfer.md#response).
+Wraps [`mega.transfer()`](../methods-reference.md#megatransfer). Handle `approved`, `cancelled`, and `error` states explicitly — see [Transaction Result](../methods-reference.md#megatransfer).
 
 ```tsx
 const { mutateAsync: transfer } = useTransfer();
@@ -185,7 +185,7 @@ const transferHook = useTransfer({
 
 ### `useSend(): UseMutationResult<TransactionResult, Error, SendRequest>`
 
-Wraps [`mega.send()`](../methods/send.md) — wallet-native send flow with minimal input (token + destination) and wallet-managed UX.
+Wraps [`mega.send()`](../methods-reference.md#megasend) — wallet-native send flow with minimal input (token + destination) and wallet-managed UX.
 
 ```tsx
 const { mutateAsync: send } = useSend();
@@ -197,7 +197,7 @@ await send({
 
 ### `useSwap(): UseMutationResult<TransactionResult, Error, SwapRequest>`
 
-Wraps [`mega.swap()`](../methods/swap.md) — wallet-managed swap flow. Treat `cancelled` as neutral user intent.
+Wraps [`mega.swap()`](../methods-reference.md#megaswap) — wallet-managed swap flow. Treat `cancelled` as neutral user intent.
 
 ```tsx
 const { mutateAsync: swap } = useSwap();
@@ -209,7 +209,7 @@ await swap({
 
 ### `useCallContract(): UseMutationResult<TransactionResult, Error, CallContractRequest | CallContractRequest[]>`
 
-Wraps [`mega.callContract()`](../methods/call-contract.md). Accepts single or batch input.
+Wraps [`mega.callContract()`](../methods-reference.md#megacallcontract). Accepts single or batch input.
 
 ```tsx
 const { mutateAsync: callContract } = useCallContract();
@@ -246,7 +246,7 @@ Use `silent: true` only after a matching delegated permission grant exists for t
 
 ### `useGetFromContract(): UseMutationResult<unknown, Error, GetFromContractRequest>`
 
-Wraps [`mega.getFromContract()`](../methods/get-from-contract.md). Modeled as a mutation in this package — call `mutateAsync()` for each read; results don't auto-cache.
+Wraps [`mega.getFromContract()`](../methods-reference.md#megagetfromcontract). Modeled as a mutation in this package — call `mutateAsync()` for each read; results don't auto-cache.
 
 ```tsx
 const { mutateAsync: read } = useGetFromContract();
@@ -260,7 +260,7 @@ const result = await read({
 
 ### `useSignMessage(): UseMutationResult<SignMessageResponse, Error, string>`
 
-Wraps [`mega.signMessage()`](../methods/sign-message.md). Treat user cancellation as a neutral state, not an app error.
+Wraps [`mega.signMessage()`](../methods-reference.md#megasignmessage). Treat user cancellation as a neutral state, not an app error.
 
 ```tsx
 const { mutateAsync: signMessage } = useSignMessage();
@@ -275,7 +275,7 @@ const signHook = useSignMessage({
 
 ### `useAuthenticate(): UseMutationResult<AuthenticateResponse, Error, void>`
 
-Wraps [`mega.authenticate()`](../methods/authenticate.md) — MOSS-led auth challenge, returns a JWT for backend verification.
+Wraps [`mega.authenticate()`](../methods-reference.md#megaauthenticate) — MOSS-led auth challenge, returns a JWT for backend verification.
 
 ```tsx
 const { mutateAsync: authenticate } = useAuthenticate();
@@ -296,7 +296,7 @@ const authHook = useAuthenticate({
 
 ### `useSignData(): UseMutationResult<SignDataResponse, Error, SignDataRequest>`
 
-Wraps [`mega.signData()`](../methods/sign-data.md) — typed signing flows such as permits and structured approvals.
+Wraps [`mega.signData()`](../methods-reference.md#megasigndata) — typed signing flows such as permits and structured approvals.
 
 ```tsx
 const { mutateAsync: signData } = useSignData();
@@ -309,7 +309,7 @@ const signDataHook = useSignData({
 
 ### `useGrantPermissions(): UseMutationResult<GrantPermissionsResponse, Error, GrantPermissionsRequest>`
 
-Wraps [`mega.grantPermissions()`](../methods/grant-permissions.md).
+Wraps [`mega.grantPermissions()`](../methods-reference.md#megagrantpermissions).
 
 ```tsx
 const { mutateAsync: grant } = useGrantPermissions();
@@ -331,7 +331,7 @@ Keep scope narrow: short expiry, specific contracts, low spend limits. See [Best
 
 ### `useRevokePermissions(): UseMutationResult<void, Error, void>`
 
-Wraps [`mega.revokePermissions()`](../methods/revoke-permissions.md). Expose a clear revoke path in your product UI — users can also revoke app-specific permissions from wallet/account settings.
+Wraps [`mega.revokePermissions()`](../methods-reference.md#megarevokepermissions). Expose a clear revoke path in your product UI — users can also revoke app-specific permissions from wallet/account settings.
 
 ```tsx
 const { mutateAsync: revoke } = useRevokePermissions();
@@ -344,7 +344,7 @@ const revokeHook = useRevokePermissions({
 
 ### `useDeposit(): UseMutationResult<void, Error, void>`
 
-Wraps [`mega.deposit()`](../methods/deposit.md) — opens wallet funding UI, not a direct contract write.
+Wraps [`mega.deposit()`](../methods-reference.md#megadeposit) — opens wallet funding UI, not a direct contract write.
 
 ```tsx
 const { mutateAsync: deposit } = useDeposit();
@@ -353,7 +353,7 @@ await deposit();
 
 ### `useBalances(tokens?: string[], options?): UseQueryResult<OwnedTokenResponse[]>`
 
-Wraps [`mega.balances()`](../methods/balances.md). Only fetches when the wallet is connected — the `enabled` gate is handled internally.
+Wraps [`mega.balances()`](../methods-reference.md#megabalances). Only fetches when the wallet is connected — the `enabled` gate is handled internally.
 
 ```tsx
 import { useBalances } from '@megaeth-labs/wallet-sdk-react';
@@ -375,7 +375,7 @@ The internal query key is `['balances']` — not parameterized on the `tokens` a
 
 ### `usePermissions(address?: string, options?): UseQueryResult<GetPermissionsResponse | undefined>`
 
-Wraps [`mega.getPermissions()`](../methods/get-permissions.md). Only fetches when the wallet is connected. The `address` arg switches modes: omit it for **your session's own grants**, pass an address for a **specific delegate's grants**.
+Wraps [`mega.getPermissions()`](../methods-reference.md#megagetpermissions). Only fetches when the wallet is connected. The `address` arg switches modes: omit it for **your session's own grants**, pass an address for a **specific delegate's grants**.
 
 ```tsx
 // Your session's own grants

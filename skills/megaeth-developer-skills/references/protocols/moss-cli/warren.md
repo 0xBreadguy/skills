@@ -122,10 +122,8 @@ The scripts check:
 2. 0xRabbit.agent Key ownership.
 3. Auto-mint 0xRabbit.agent Key if neither exists.
 
-Users need MegaETH mainnet ETH. The source estimates about 0.001 ETH for a
-small site and about 0.03 ETH for a small 10-image NFT collection, but agents
-should treat those as rough historical estimates and check current balances and
-gas.
+Users need MegaETH mainnet ETH. Estimate the exact deployment and check current
+balances; do not use historical example costs as a quote.
 
 ## Limits
 
@@ -148,11 +146,11 @@ WARREN_TOKEN_ID=$WARREN_TOKEN_ID_BASE10
 IS_MASTER=true
 
 mega moss create-key \
-  --allow-call "$MEGANAMES:setWarrenContenthash(uint256,uint256,bool)" \
+  --allow-call "$MEGANAMES:setWarrenContenthash(uint256,uint32,bool)" \
   --label "meganames-warren-link"
 
 DATA=$(cast calldata \
-  'setWarrenContenthash(uint256,uint256,bool)' \
+  'setWarrenContenthash(uint256,uint32,bool)' \
   "$TOKEN_ID" "$WARREN_TOKEN_ID" "$IS_MASTER")
 
 mega moss execute --to "$MEGANAMES" --data "$DATA"

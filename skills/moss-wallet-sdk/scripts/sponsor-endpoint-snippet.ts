@@ -14,7 +14,7 @@
  * 'native'. sponsorMode 'everything' is TESTING-ONLY — never ship it.
  *
  * Every request MUST pass three gates, in order, before approval:
- *   1. Contract allowlist  -> reject 403 if the target is not approved
+ *   1. Signed-call policy  -> decode every call; reject 403 if any call fails
  *   2. Rate limit          -> reject 429 if per-user or per-IP cap exceeded
  *   3. Budget cap          -> reject 403 if daily/monthly ceiling exhausted
  * Then sign and return the sponsorship approval, or reject with a structured
@@ -37,13 +37,14 @@ app.use(express.json());
 // Config (move to env / secrets in production)
 // ---------------------------------------------------------------------------
 
-// TODO: load your real allowlist of sponsorable contract addresses.
-const CONTRACT_ALLOWLIST = new Set<string>(
-  [
-    '0xYourPrimaryContract',
-    '0xYourRewardsContract',
-  ].map((a) => a.toLowerCase()),
-);
+// TODO: load the exact (target, selector) pairs and native-value caps your app
+// may sponsor. Decode and validate relevant calldata arguments as well.
+const CALL_POLICIES = new Map<string, { maxValue: bigint }>([
+  ['0xyourprimarycontract:0x12345678', { maxValue: 0n }],
+  ['0xyourrewardscontract:0x90abcdef', { maxValue: 0n }],
+]);
+
+const EXPECTED_CHAIN_ID = 4326;
 
 // Rate-limit windows / caps — tune to your traffic.
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
@@ -65,13 +66,40 @@ let dailySpent = 0;
 let dailyWindowStart = Date.now();
 
 // ---------------------------------------------------------------------------
-// Gate 1 — contract allowlist
+// Gate 1 — decode the signed operation and enforce its actual calls
 // ---------------------------------------------------------------------------
 
-function isAllowedContract(target?: string): boolean {
-  // TODO: extend to allowlist by (contract, method signature) if you need
-  // per-method control, not just per-contract.
-  return !!target && CONTRACT_ALLOWLIST.has(target.toLowerCase());
+type DecodedOperation = {
+  sender: string;
+  chainId: number;
+  calls: { target: string; selector: string; value: bigint }[];
+};
+
+function decodeOperation(_userOperation: unknown): DecodedOperation {
+  // TODO: decode the exact operation format sent by your configured MOSS/Porto
+  // integration. Derive sender, chain ID, and every inner call from the signed
+  // operation itself. Never authorize a separate client-supplied target field.
+  // Keep this fail-closed until the real decoder is implemented and tested.
+  throw new Error('OPERATION_DECODER_NOT_IMPLEMENTED');
+}
+
+function isAllowedOperation(operation: DecodedOperation): boolean {
+  if (
+    operation.chainId !== EXPECTED_CHAIN_ID ||
+    !/^0x[0-9a-fA-F]{40}$/.test(operation.sender) ||
+    !Array.isArray(operation.calls) ||
+    operation.calls.length === 0
+  ) {
+    return false;
+  }
+  return operation.calls.every(({ target, selector, value }) => {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(target) || !/^0x[0-9a-fA-F]{8}$/.test(selector)) {
+      return false;
+    }
+    if (typeof value !== 'bigint' || value < 0n) return false;
+    const policy = CALL_POLICIES.get(`${target.toLowerCase()}:${selector.toLowerCase()}`);
+    return !!policy && value <= policy.maxValue;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -124,30 +152,35 @@ function commitBudget(cost: number): void {
 app.post('/sponsor', async (req: Request, res: Response) => {
   const now = Date.now();
 
-  // The MOSS wallet flow posts the proposed operation. Field names depend on
-  // your paymaster provider — adapt to your integration (e.g. Porto-compatible).
-  const { userOperation, account, target } = (req.body ?? {}) as {
+  // The MOSS wallet flow posts the proposed operation. Its exact shape depends
+  // on your paymaster provider; decode that shape rather than trusting summary
+  // fields supplied alongside it.
+  const { userOperation } = (req.body ?? {}) as {
     userOperation?: unknown;
-    account?: string;
-    target?: string;
   };
 
   // Basic shape validation.
-  if (!userOperation || !account) {
+  if (!userOperation) {
     return res.status(400).json({ error: 'INVALID_REQUEST' });
   }
 
-  // Gate 1 — contract allowlist.
-  if (!isAllowedContract(target)) {
-    return res.status(403).json({ error: 'CONTRACT_NOT_ALLOWED' });
+  let operation: DecodedOperation;
+  try {
+    operation = decodeOperation(userOperation);
+  } catch {
+    return res.status(400).json({ error: 'INVALID_OR_UNSUPPORTED_OPERATION' });
+  }
+
+  // Gate 1 — enforce every actual inner call, including batched calls.
+  if (!isAllowedOperation(operation)) {
+    return res.status(403).json({ error: 'OPERATION_NOT_ALLOWED' });
   }
 
   // Gate 2 — rate limit (per-user AND per-IP). Reject if either is exceeded.
-  const ip =
-    (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
-    req.socket.remoteAddress ??
-    'unknown';
-  const okUser = hitAndCheck(userHits, account.toLowerCase(), MAX_PER_USER_PER_WINDOW, now);
+  // `req.ip` ignores X-Forwarded-For unless Express `trust proxy` is configured.
+  // Configure that setting only for known proxies.
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const okUser = hitAndCheck(userHits, operation.sender.toLowerCase(), MAX_PER_USER_PER_WINDOW, now);
   const okIp = hitAndCheck(ipHits, ip, MAX_PER_IP_PER_WINDOW, now);
   if (!okUser || !okIp) {
     return res.status(429).json({ error: 'RATE_LIMIT_EXCEEDED' });

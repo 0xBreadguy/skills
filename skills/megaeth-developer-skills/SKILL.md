@@ -23,7 +23,7 @@ work.
 | --- | --- |
 | Network | MegaETH mainnet `4326`, testnet `6343` |
 | RPC | `https://mainnet.megaeth.com/rpc`, `https://carrot.megaeth.com/rpc` |
-| Transactions | `realtime_sendRawTransaction` when immediate receipt return matters |
+| Transactions | `realtime_sendRawTransaction` when receipt return without polling matters |
 | Tooling | Foundry for contracts; MegaETH RPC for estimation; `mega-evme` for MegaEVM replay/debugging |
 | Frontend | viem/wagmi or app-native EIP-1193 flows; use MOSS via `moss-wallet-sdk` |
 | Tokens | Use `megaeth-labs/mega-tokenlist` for addresses and decimals |
@@ -48,9 +48,9 @@ work.
   protocol docs used.
 - Do not assume Ethereum local simulation gas matches MegaETH. Use a MegaETH
   RPC for `eth_estimateGas` or reproduce with `mega-evme`.
-- Treat `realtime_sendRawTransaction` as the current realtime transaction
-  method. Historical `realtime_sendRawTransaction` guidance may appear in older
-  materials; verify before using it in new code.
+- Prefer `realtime_sendRawTransaction` for new synchronous-submission code.
+  The public gateway also supports `eth_sendRawTransactionSync` as a
+  compatibility alias with the same parameters and receipt behavior.
 - Keep protocol-specific app integration guidance and agent-operated MOSS CLI
   execution recipes in their separate protocol references. Use
   `moss-wallet-cli` for wallet command and permission mechanics.

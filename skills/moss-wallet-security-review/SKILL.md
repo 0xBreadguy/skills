@@ -1,6 +1,6 @@
 ---
 name: moss-wallet-security-review
-description: "Reviews an existing MOSS wallet integration for security and correctness before launch on MegaETH. Use when auditing partner code rather than building it: produces findings grouped as Critical, Risky defaults, and Recommendations with concrete remediations. Checks for frontend-owned trust decisions, missing backend SIWE/JWT verification, over-broad or long-lived permission grants, to-only call matching, unguarded silent: true usage, unrestricted sponsor endpoints (no allowlist/budget/rate limit), unhandled cancelled/error results, insecure-context passkey failures, and persisted session-key material in frontend storage."
+description: "Reviews an existing MOSS wallet integration for security and correctness before launch on MegaETH. Use when auditing partner code rather than building it: produces findings grouped as Critical, Risky defaults, and Recommendations with concrete remediations. Checks for frontend-owned trust decisions, missing backend SIWE/JWT verification, over-broad or long-lived permission grants, to-only call matching, unguarded silent: true usage, sponsor endpoints that do not decode signed calls or enforce policy/budgets/rate limits, unhandled cancelled/error results, insecure-context passkey failures, and persisted session-key material in frontend storage."
 ---
 
 # MOSS Wallet Security Review
@@ -19,7 +19,10 @@ not installed.
 2. **Trust decisions belong on the backend.** Auth, account linking, sponsorship, and permission escalation must be verified server-side. A frontend that grants access based only on `useStatus().address` (no signature/JWT check) is Critical.
 3. **Permission grants are least-privilege.** Every `calls[]` entry needs **both** `to` and `signature`. Short expiry, small spend caps, scoped contracts. `to`-only matching is not the documented model.
 4. **`silent: true` requires a matching unexpired grant.** Otherwise it errors unless `silentUIApproveFallback: true`. Unguarded silent calls break or surprise users.
-5. **The sponsor endpoint is attacker-reachable.** No allowlist + budget cap + rate limit = drainable. Critical. `sponsorMode: 'everything'` is testing-only.
+5. **The sponsor endpoint is attacker-reachable.** It must decode the signed
+   operation and enforce every inner call. Trusting a separate client-supplied
+   target, or omitting call policy, budget caps, or rate limits, is drainable.
+   Critical. `sponsorMode: 'everything'` is testing-only.
 6. **Methods resolve, they don't throw on cancel.** Every transacting call must branch on `result.status` (`approved`/`cancelled`/`error`). `cancelled` is neutral — never an error toast.
 
 ## Audit workflow
@@ -32,7 +35,7 @@ not installed.
    Identify: core SDK vs React vs wagmi connector, whether `wallet-server-verify` is used, and where `initialise`/`MegaProvider config` lives.
 2. **Locate the trust boundary.** Find every place the app decides "this user is allowed to X." Confirm each is backed by a server-side `verifySignature` (SIWE) or partner-auth JWT verify call — not by a frontend address read.
 3. **Inspect permission grants.** For each `grantPermissions`, check expiry length, `calls[]` shape, spend limits, and whether a revoke path exists.
-4. **Inspect sponsorship.** Find `sponsorUrl`/`sponsorMode`/`sponsorToken` and the sponsor endpoint handler. Verify allowlist + budget + rate limit.
+4. **Inspect sponsorship.** Find `sponsorUrl`/`sponsorMode`/`sponsorToken` and the sponsor endpoint handler. Verify it decodes the signed operation, checks every inner target/selector/value/argument plus sender and chain, and enforces budgets and rate limits.
 5. **Inspect result handling.** Every `transfer`/`callContract`/`send`/`swap`/`signMessage`/`signData`/`authenticate`/`grantPermissions` result must branch on `status`.
 6. **Inspect storage & context.** Grep `localStorage`/`sessionStorage`/`indexedDB`/cookies for session-key or delegated-signing material. Confirm passkey flows account for secure-context requirements.
 7. **Pin versions.** Confirm `@megaeth-labs/wallet-*` deps are pinned to tested versions, not `latest`/`^`-floating across a major.
@@ -49,7 +52,7 @@ Grep hints are starting points; confirm by reading the surrounding code before f
 | Private-key / seed-phrase / Recovery-Code handling | any read/write/export of key/mnemonic/`privateKey`/`seedPhrase`/`recovery` | Remove entirely. MOSS holds keys in the hosted wallet; the app only requests actions. |
 | Missing backend verification | login/link gated on `useStatus().address` or `connect()` result with no server call | Add `wallet-server-verify`: server `getMessageToSign` → client `mega.signMessage` → server `verifySignature`. Or JWT: `mega.authenticate()` → backend verify at the partner-auth endpoint. |
 | Frontend-owned trust decision | entitlements/roles/balances-of-trust computed client-side from wallet state | Move the decision server-side; treat the frontend address as a claim, not proof. |
-| Unrestricted sponsor endpoint | `sponsorUrl` handler with no allowlist / no budget cap / no rate limit | Enforce contract+method allowlist, per-window budget ceiling, and rate limiting before sponsoring. |
+| Unrestricted sponsor endpoint | handler trusts a separate `target`, cannot decode batches, or lacks exact call policy / budget cap / rate limit | Decode the signed operation; enforce every inner target, selector, value, relevant argument, sender, and chain plus atomic budgets and rate limits before signing. |
 | `sponsorMode: 'everything'` in production | `sponsorMode: 'everything'` in prod `initialise`/`megaWallet`/`MegaProvider` config | Use `app-only` (default) or `explicit`; `everything` is testing-only. |
 
 ### Risky defaults — fix before scaling
@@ -94,7 +97,7 @@ CRITICAL
 [ ] No private-key / seed-phrase / Recovery-Code read, write, export, or persist anywhere
 [ ] Auth / account-linking verified server-side (wallet-server-verify SIWE OR authenticate() JWT)
 [ ] No trust/entitlement decision computed purely from frontend wallet state
-[ ] Sponsor endpoint enforces allowlist + budget cap + rate limit
+[ ] Sponsor endpoint decodes signed calls and enforces call policy + budget cap + rate limit
 [ ] sponsorMode is 'app-only' or 'explicit' in production (never 'everything')
 
 RISKY DEFAULTS

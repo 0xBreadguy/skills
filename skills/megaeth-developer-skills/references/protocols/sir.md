@@ -4,13 +4,15 @@ Use this for dApp developer integration guidance for SIR Trading. For
 agent-operated `mega moss` execution recipes, read
 `references/protocols/moss-cli/sir.md`.
 
-## Source Status
+## Sources
 
-This file adapts the SIR Trading skill from
-`https://github.com/SIR-trading/sir-trading-skill/blob/master/sir-trading.md`.
-Treat that upstream skill and the SIR Core/Periphery repositories as the
-project source material. Verify addresses, ABIs, and UI terminology against
-current SIR sources before production or value-bearing execution.
+Use SIR's live `https://app.sir.trading/build-data.json` for current chain
+configuration, the
+[SIR trading skill](https://github.com/SIR-trading/sir-trading-skill) for the
+current multi-chain interface, and verified deployed source/ABI for the exact
+target. The Core and Periphery repositories are useful source material but can
+lag the deployed MegaETH interface, including its extra `portionLockTime`
+argument.
 
 ## Network
 
@@ -28,7 +30,9 @@ current SIR sources before production or value-bearing execution.
 | SystemControl | `0x549618c8E4b74f9eB519e459698b2CaF53dA0453` |
 | Contributors | `0x686748764c5C7Aa06FEc784E60D14b650bF79129` |
 | Assistant | `0xB91AE2c8365FD45030abA84a4666C4dB074E53E7` |
-| Treasury | `0xf1Db8f4D2543c2C881a3dC90754CEDf549cD362d` |
+
+The inherited `0xf1Db8f4D2543c2C881a3dC90754CEDf549cD362d`
+“Treasury” label is omitted because it is not present in SIR's live build data.
 
 SIR depends on Kumbaya liquidity and pricing. The source lists these Kumbaya
 contracts:
@@ -94,6 +98,14 @@ Vault status values from the source:
 Discover existing vaults with `Vault.numberOfVaults()` and
 `Vault.paramsById(uint48)`. Vault IDs start at 1 in the source examples.
 
+Return values matter:
+
+- `quoteMint` returns the expected APE/TEA token amount.
+- `quoteMintWithDebtToken` returns `(amountTokens, amountCollateral,
+  amountCollateralIdeal)`.
+- `quoteBurn` returns `(amountCollateral, amountDebtToken)`; it does not supply
+  a minimum-output argument to `burn`.
+
 ## Write Path
 
 Use the Vault for mint, burn, initialize, and TEA ERC1155 actions.
@@ -125,16 +137,23 @@ For collateral-token funding:
 2. Call `Assistant.quoteMint(true, vaultParams, amountCollateral)`.
 3. Approve the Vault to spend the collateral ERC20, unless the input is native
    ETH/WETH through the native path.
-4. Call `Vault.mint(true, vaultParams, amountToDeposit, minTokensOrCollateral,
-   deadline, portionLockTime)`.
+4. Call `Vault.mint(true, vaultParams, amountToDeposit, 0, deadline,
+   portionLockTime)`.
+
+For direct collateral funding, `collateralToDepositMin` **must be zero**. It is
+not a minimum APE/TEA output. A nonzero value tells the Vault that
+`amountToDeposit` is debt token and should be swapped to collateral.
 
 For debt-token funding, quote with `quoteMintWithDebtToken`. The Vault swaps
-debt token to collateral through Kumbaya; use the returned collateral amount to
-set the minimum.
+debt token to collateral through Kumbaya; apply the user's slippage policy to
+the returned `amountCollateral` and pass that nonzero value as
+`collateralToDepositMin`.
 
-When native ETH is used for a vault whose collateral or debt token is WETH, the
-source examples send native value to `mint` and pass `amountToDeposit = 0`.
-Verify the active ABI and path before using native value.
+When native ETH is used, `amountToDeposit` is zero. If WETH is the collateral,
+pass `collateralToDepositMin = 0`. If WETH is the debt token and a swap is
+required, the minimum must be nonzero; otherwise the Vault follows the
+collateral-input branch and rejects the path. Verify the active ABI and quote
+immediately before sending native value.
 
 ### Minting TEA
 
@@ -193,9 +212,11 @@ the source material. `bid` is payable and uses native ETH as `msg.value`.
 - For terminal execution, use
   `references/protocols/moss-cli/sir.md`.
 - Bundle ERC20 approval and the consuming Vault call when possible.
-- Use `eth_sendRawTransactionSync` only for direct wallet or SDK submission
-  paths where the chosen client supports it; the MOSS CLI handles relay-backed
-  execution through its own commands.
+- Use `realtime_sendRawTransaction` when a direct wallet or SDK path benefits
+  from an inline receipt; the MOSS CLI handles relay-backed execution through
+  its own commands. The public gateway also supports
+  `eth_sendRawTransactionSync` as a compatibility alias, but new integrations
+  should use the documented method name.
 
 ## Safety
 

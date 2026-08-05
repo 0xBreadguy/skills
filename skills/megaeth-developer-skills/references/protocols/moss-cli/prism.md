@@ -1,240 +1,84 @@
-# Prism With MegaETH Wallet CLI
+# Prism with MegaETH Wallet CLI
 
-Use this only for `mega moss` execution guidance. For dApp developer
-integration, read `megaeth-developer-skills` protocol references.
+Use this only for Prism due diligence through `mega moss`. The release audit
+found live Prism web/read endpoints and bytecode at inherited candidate
+addresses, but no public protocol-owned ABI or deployment manifest sufficient
+to authorize write calldata. Therefore this guide intentionally provides no
+`create-key` or `execute` recipe.
 
-## Source Status
-
-This file adapts `megaeth-ai-developer-skills/prism-dex.md` into scoped MOSS
-CLI execution patterns. Verify Prism addresses, ABIs, endpoints, taxable-token
-rules, and quote behavior against official Prism sources before value-bearing
-execution.
-
-Do not use Awesome MegaETH AI or MTRKR MCP as execution source-of-truth. MTRKR,
-if present, is an unverified external read-only tooling candidate; do not
-recommend or use it unless due diligence confirms installation, auth/payment
-requirements, privacy behavior, read-only behavior, tool schemas, and output
-reliability.
-
-## Mainnet Constants
-
-Verify before execution:
+## Public discovery sources
 
 ```bash
-CHAIN_ID=4326
+curl -fsS https://prismfi.cc/tokenlist.json > prism-tokenlist.json
+curl -fsS https://prismfi.cc/api/pools/list > prism-pools.json
+
+jq 'type' prism-tokenlist.json
+jq 'type' prism-pools.json
+```
+
+Inspect and schema-validate responses before extracting addresses. Compare token
+identity and decimals with `megaeth-labs/mega-tokenlist` and on-chain reads.
+
+## Candidate-address checks
+
+These inherited labels are **unverified**. They are included only to support
+investigation, not execution:
+
+```bash
 FACTORY=0x1adb8f973373505bb206e0e5d87af8fb1f5514ef
-QUOTER_V2=0xdd79c72c21f7dcd1d034b55caf9177bc42f5df0c
-SWAP_ROUTER=0xb1f38c36249834d8e3cd582d30101ff4b864f234
-UNIVERSAL_ROUTER=0x955d56f6391a496231509134e0d2beadf82a223f
-PERMIT2=0x56783fbf77a33871892a2d66337677555714ffbb
-NFT_MANAGER=0xcb91c75a6b29700756d4411495be696c4e9a576e
-SELECTIVE_TAX_ROUTER=0x19956ebe69659c78ad4ee500694287bc6f67c4da
-SELECTIVE_TAX_ROUTER_PERMIT2=0x4c2c989f20794fa92d3082a3d49d9a430face555
-WETH=0x4200000000000000000000000000000000000006
-USDM=0xfafddbb3fc7688494971a79cc65dca3ef82079e7
-NATIVE=0x0000000000000000000000000000000000000000
+QUOTER_CANDIDATE=0xdd79c72c21f7dcd1d034b55caf9177bc42f5df0c
+ROUTER_CANDIDATE=0xb1f38c36249834d8e3cd582d30101ff4b864f234
+TAX_ROUTER_CANDIDATE=0x19956ebe69659c78ad4ee500694287bc6f67c4da
+NFT_MANAGER_CANDIDATE=0xcb91c75a6b29700756d4411495be696c4e9a576e
 ```
 
-Prism pool init code hash:
-
-```text
-0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
-```
-
-## Function Scopes
-
-Use these exact signatures in delegated-key call scopes after verifying the ABI:
-
-| Action | Target | Signature |
-| --- | --- | --- |
-| approve router or NFT manager | ERC20 input token | `approve(address,uint256)` |
-| non-tax exact input single | SwapRouter02 | `exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))` |
-| non-tax exact output single | SwapRouter02 | `exactOutputSingle((address,address,uint24,address,uint256,uint256,uint160))` |
-| multi-hop exact input | SwapRouter02 | `exactInput((bytes,address,uint256,uint256))` |
-| taxable exact input single | SelectiveTaxRouter | `exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))` |
-| taxable exact output single | SelectiveTaxRouter | `exactOutputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))` |
-| mint liquidity position | NonfungiblePositionManager | `mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256))` |
-| increase liquidity | NonfungiblePositionManager | `increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))` |
-| decrease liquidity | NonfungiblePositionManager | `decreaseLiquidity((uint256,uint128,uint256,uint256,uint256))` |
-| collect fees/tokens | NonfungiblePositionManager | `collect((uint256,address,uint128,uint128))` |
-
-Use `mega moss call` for `willBeTaxed(address,address,address)` and
-`calculateTax(address,address,address,uint256)` before taxable writes.
-
-## Preflight
-
-1. Run `mega moss whoami --json` and copy the wallet account.
-2. Verify token metadata with `mega-tokenlist`, Prism tokenlist, or token
-   contracts.
-3. Quote with `QuoterV2` or a verified Prism quote source.
-4. Check whether the route is taxable before choosing a router.
-5. Convert human amounts to base units with verified token decimals.
-6. Set `amountOutMinimum` or `amountInMaximum`; never use zero in production.
-7. Inspect `mega moss list --json` and `mega moss permissions <key> --json`
-   before reusing an existing delegated key.
-
-Example variables:
+Confirm the connected wallet and perform bytecode-only inspection:
 
 ```bash
-WALLET=$(mega moss whoami --json | jq -r '.account // .address')
-TOKEN_IN=$WETH
-TOKEN_OUT=$USDM
-FEE=3000
-AMOUNT_IN=1000000000000000000
-AMOUNT_OUT_MIN=$QUOTE_MINUS_SLIPPAGE_BASE_UNITS
-DEADLINE=$(( $(date +%s) + 120 ))
+mega moss whoami --json
+
+for address in \
+  "$FACTORY" \
+  "$QUOTER_CANDIDATE" \
+  "$ROUTER_CANDIDATE" \
+  "$TAX_ROUTER_CANDIDATE" \
+  "$NFT_MANAGER_CANDIDATE"
+do
+  cast code "$address" --rpc-url https://mainnet.megaeth.com/rpc
+done
 ```
 
-Set `QUOTE_MINUS_SLIPPAGE_BASE_UNITS` from a fresh quote before executing.
-`AMOUNT_OUT_MIN` must be a decimal integer base-unit amount before encoding.
+Non-empty code proves only that a contract exists. It does not prove any label
+or function signature.
 
-## Non-Tax ERC20 Exact Input Swap
+## Read-only `mega moss call`
 
-Use `SwapRouter02` when Prism docs/current checks say the route is not taxable.
+Use `mega moss call` only after obtaining a function signature from a current
+Prism-owned ABI or verified deployed source. For example, after independently
+verifying a read-only ABI:
 
 ```bash
-mega moss create-key \
-  --allow-call "$TOKEN_IN:approve(address,uint256)" \
-  --allow-call "$SWAP_ROUTER:exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))" \
-  --spend-limit "$TOKEN_IN:1:day" \
-  --label "prism-exact-input"
+DATA=$(cast calldata '<VERIFIED_VIEW_SIGNATURE>' <VERIFIED_ARGS...>)
+mega moss call --to <VERIFIED_CONTRACT> --data "$DATA"
 ```
 
-Build calldata:
+Do not probe write selectors, approve candidate spenders, or infer tax behavior
+from a reverted call.
 
-```bash
-APPROVE=$(cast calldata 'approve(address,uint256)' "$SWAP_ROUTER" "$AMOUNT_IN")
-SWAP=$(cast calldata \
-  'exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))' \
-  "($TOKEN_IN,$TOKEN_OUT,$FEE,$WALLET,$AMOUNT_IN,$AMOUNT_OUT_MIN,0)")
-```
+## Gate for delegated execution
 
-Create `calls.json` and execute approval plus swap in one batch:
+Before adding a Prism `mega moss create-key` or `mega moss execute` flow, verify:
 
-```bash
-cat > calls.json <<EOF
-[
-  {
-    "to": "$TOKEN_IN",
-    "data": "$APPROVE",
-    "value": "0"
-  },
-  {
-    "to": "$SWAP_ROUTER",
-    "data": "$SWAP",
-    "value": "0"
-  }
-]
-EOF
+- deployment manifest and chain ID;
+- ABI and any proxy implementation;
+- exact router and quote semantics;
+- token, native ETH, tax, Permit2, refund, and deadline behavior;
+- a fresh quote with explicit slippage;
+- successful target-network simulation.
 
-mega moss execute --calls ./calls.json
-```
+Only then scope the key to the exact verified target and selector, use tight
+token/native spend limits and expiry, bundle an ERC-20 approval with its
+consuming action, and revoke the key after use.
 
-## Taxable ERC20 Exact Input Swap
-
-Use `SelectiveTaxRouter` when Prism's current rules indicate the pair/user is
-taxable. Do not use a made-up `swapWithTax` function.
-
-Read tax status:
-
-```bash
-TAX_CHECK=$(cast calldata 'willBeTaxed(address,address,address)' "$TOKEN_IN" "$TOKEN_OUT" "$WALLET")
-mega moss call --to "$SELECTIVE_TAX_ROUTER" --data "$TAX_CHECK"
-
-TAX_QUOTE=$(cast calldata 'calculateTax(address,address,address,uint256)' "$TOKEN_IN" "$TOKEN_OUT" "$WALLET" "$AMOUNT_IN")
-mega moss call --to "$SELECTIVE_TAX_ROUTER" --data "$TAX_QUOTE"
-```
-
-Create a scoped key for the taxable router:
-
-```bash
-mega moss create-key \
-  --allow-call "$TOKEN_IN:approve(address,uint256)" \
-  --allow-call "$SELECTIVE_TAX_ROUTER:exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))" \
-  --spend-limit "$TOKEN_IN:1:day" \
-  --label "prism-tax-exact-input"
-```
-
-Build calldata and execute in one approval plus swap batch:
-
-```bash
-APPROVE=$(cast calldata 'approve(address,uint256)' "$SELECTIVE_TAX_ROUTER" "$AMOUNT_IN")
-SWAP=$(cast calldata \
-  'exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))' \
-  "($TOKEN_IN,$TOKEN_OUT,$FEE,$WALLET,$DEADLINE,$AMOUNT_IN,$AMOUNT_OUT_MIN,0)")
-```
-
-Use the same `calls.json` shape as the non-tax swap, with the second call sent
-to `$SELECTIVE_TAX_ROUTER`.
-
-## Native ETH Exact Input Swap
-
-For native ETH input on a non-tax route, use WETH as `tokenIn` in router params
-and send native value with the router call. Do not add ERC20 approval.
-
-```bash
-TOKEN_IN=$WETH
-AMOUNT_IN=100000000000000000
-
-mega moss create-key \
-  --allow-call "$SWAP_ROUTER:exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))" \
-  --spend-limit "$NATIVE:0.1:day" \
-  --label "prism-native-exact-input"
-
-SWAP=$(cast calldata \
-  'exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))' \
-  "($TOKEN_IN,$TOKEN_OUT,$FEE,$WALLET,$AMOUNT_IN,$AMOUNT_OUT_MIN,0)")
-
-mega moss execute --to "$SWAP_ROUTER" --data "$SWAP" --value "$AMOUNT_IN"
-```
-
-For taxable native flows, verify Prism's current taxable-router native ETH
-semantics before execution.
-
-## Liquidity Position Actions
-
-For minting or increasing liquidity, the delegated key usually needs:
-
-- `approve(address,uint256)` on token0 for `NFT_MANAGER`.
-- `approve(address,uint256)` on token1 for `NFT_MANAGER`.
-- the exact `NonfungiblePositionManager` action signature.
-- spend limits for both ERC20 input tokens.
-
-Example mint key shape:
-
-```bash
-mega moss create-key \
-  --allow-call "$TOKEN0:approve(address,uint256)" \
-  --allow-call "$TOKEN1:approve(address,uint256)" \
-  --allow-call "$NFT_MANAGER:mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256))" \
-  --spend-limit "$TOKEN0:100:day" \
-  --spend-limit "$TOKEN1:1:day" \
-  --label "prism-mint-position"
-```
-
-Before minting, sort `token0` and `token1` by address, read pool `slot0()` and
-`liquidity()`, set nonzero `amount0Min` and `amount1Min`, and set a short
-deadline. Do not choose tick ranges or liquidity amounts for the user.
-
-For remove-liquidity flows, use `decreaseLiquidity` then `collect`. These
-actions do not require ERC20 approval, but they change position risk and token
-balances; confirm tokenId, liquidity amount, recipient, and minimum outputs.
-
-## Pool Address Warning
-
-Prism pool address computation uses ABI-encoded salt and the Prism init code
-hash. Do not reuse Kumbaya or Uniswap pool address computation code without
-adjusting salt encoding and hash.
-
-## Safety
-
-- Verify all Prism addresses, router semantics, and signatures before
-  execution.
-- Check taxable routing before choosing `SwapRouter02` or `SelectiveTaxRouter`.
-- Quote immediately before swapping and refetch if token pair, amount,
-  recipient, fee tier, tax status, or slippage changes.
-- Never set `amountOutMinimum` or `amountInMaximum` from stale data.
-- Bundle ERC20 approval and the consuming router/NFT-manager call in one
-  `mega moss execute --calls` batch.
-- Treat WETH and native ETH as different permission/spend paths.
-- Revoke delegated keys with `mega moss revoke <key>` after the workflow.
+Do not use Awesome MegaETH AI, the inherited partner skill, or MTRKR as the sole
+authority for executable Prism calls.

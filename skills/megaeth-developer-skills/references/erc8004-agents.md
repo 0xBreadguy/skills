@@ -31,9 +31,12 @@ ERC-8004 defines three singleton registries that can be deployed per chain:
 | MegaETH Testnet | 6343 | `https://carrot.megaeth.com/rpc` |
 | Ethereum Mainnet | 1 | (reference deployment) |
 
-### Contract Addresses (All Chains — CREATE2 Deterministic)
+### Verified MegaETH deployments
 
-Deployed via CREATE2 — same addresses on every chain including MegaETH.
+The current MegaETH Identity and Reputation Registry deployments have bytecode
+at the addresses below. Do not infer that all ERC-8004 registries use one address
+on every chain: these mainnet and testnet addresses are different. Re-check the
+project deployment list before generating a write.
 
 | Contract | Mainnet Address | Testnet Address |
 |----------|----------------|-----------------|
@@ -48,8 +51,9 @@ Full deployment list: [erc-8004/erc-8004-contracts](https://github.com/erc-8004/
 
 ## Default Stack Decisions (Opinionated)
 
-### 1. Use `realtime_sendRawTransaction` for all writes
-MegaETH supports Realtime API synchronous receipt return, so no separate polling loop is needed after registration or feedback calls.
+### 1. Prefer `realtime_sendRawTransaction` when an inline receipt helps
+MegaETH also supports standard Ethereum transaction submission. A real-time
+timeout is inconclusive, so reconcile by transaction hash before retrying.
 
 ### 2. Use viem over ethers.js
 The `@agentic-trust/8004-sdk` supports both. Prefer viem for consistency with MegaETH patterns.
@@ -100,45 +104,43 @@ The agentURI resolves to a JSON registration file:
 }
 ```
 
-**Required fields:** `type`, `name`, `description`, `image`
-**Recommended:** At least one `registrations` entry and one service endpoint.
+The specification says the top-level `type`, `name`, `description`, and `image`
+fields **SHOULD** be present for ERC-721 application compatibility; it does not
+make them protocol-required fields. An agent **SHOULD** include at least one
+`registrations` entry, and both fields inside each included registration are
+mandatory. Service entries are optional.
 
 ## Identity Registry
 
 ### Register an Agent
 
 ```typescript
-import { createWalletClient, http, encodePacked } from 'viem'
+import { parseEventLogs } from 'viem'
 
 const IDENTITY_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432'
 
-// Minimal registration (set URI later)
-const agentId = await walletClient.writeContract({
-  address: IDENTITY_REGISTRY,
-  abi: identityRegistryAbi,
-  functionName: 'register',
-  args: []
-})
-
 // Registration with URI
-const agentId = await walletClient.writeContract({
+const hash = await walletClient.writeContract({
   address: IDENTITY_REGISTRY,
   abi: identityRegistryAbi,
   functionName: 'register',
   args: ['ipfs://QmYourRegistrationFile']
 })
 
-// Registration with URI + metadata
-const agentId = await walletClient.writeContract({
-  address: IDENTITY_REGISTRY,
+const receipt = await publicClient.waitForTransactionReceipt({ hash })
+const [registered] = parseEventLogs({
   abi: identityRegistryAbi,
-  functionName: 'register',
-  args: [
-    'ipfs://QmYourRegistrationFile',
-    [{ metadataKey: 'version', metadataValue: '0x01' }]
-  ]
+  logs: receipt.logs,
+  eventName: 'Registered'
 })
+const agentId = registered.args.agentId
 ```
+
+`writeContract` returns a transaction hash, not the Solidity return value. Wait
+for the receipt and decode the `Registered(uint256,string,address)` event to get
+`agentId`, or simulate the call to predict the return and still confirm it from
+the mined event. The registry also exposes `register()` and
+`register(string,MetadataEntry[])` overloads.
 
 ### Update Agent URI
 
@@ -299,7 +301,9 @@ const clients = await publicClient.readContract({
 })
 ```
 
-> **Important:** Always filter by `clientAddresses` when reading summaries. Unfiltered results are vulnerable to Sybil attacks.
+> **Important:** The current Reputation Registry requires a non-empty
+> `clientAddresses` array. Supply a trusted client set; accepting arbitrary
+> reviewers still leaves the aggregate vulnerable to Sybil manipulation.
 
 ### Revoke Feedback
 
@@ -332,7 +336,8 @@ await walletClient.writeContract({
 Agent owners request third-party validation of their work:
 
 ```typescript
-// Validation Registry not yet deployed — check erc-8004/erc-8004-contracts for updates
+// No MegaETH Validation Registry deployment was published at audit time.
+// Resolve a current, verified deployment before enabling this path.
 const VALIDATION_REGISTRY = '0x...'
 
 await walletClient.writeContract({
@@ -430,10 +435,12 @@ Optional detailed feedback stored on IPFS:
 ## MegaETH-Specific Notes
 
 - **Gas:** Registration mints an ERC-721 (new storage slots). Use `eth_estimateGas` via RPC — MegaETH SSTORE costs differ from standard EVM.
-- **Low-latency synchronous receipts:** Use `realtime_sendRawTransaction` (Realtime API) for all write operations.
+- **Low-latency receipt path:** Prefer `realtime_sendRawTransaction` when an
+  inline receipt helps; reconcile timeouts before retrying.
 - **State growth:** Each new agent identity creates storage slots. Be aware of MegaETH's 1,000 slot per-tx limit for batch operations.
 - **Subgraphs:** Feedback data is stored on-chain + emitted as events. Use subgraphs or event indexing for efficient querying.
-- **Sybil resistance:** Always filter reputation queries by trusted `clientAddresses`. Unfiltered `getSummary` calls are meaningless.
+- **Sybil resistance:** The current `getSummary` requires non-empty
+  `clientAddresses`; use a trusted set rather than arbitrary reviewers.
 
 ## Related Standards
 

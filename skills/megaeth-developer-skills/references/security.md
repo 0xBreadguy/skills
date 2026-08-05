@@ -1,211 +1,129 @@
 # Security Considerations
 
-## MegaETH-Specific Risks
+MegaETH is EVM-compatible, so standard Solidity and application-security
+practices still apply. The sections below cover the MegaEVM-specific additions;
+they do not replace a protocol-specific threat model or independent audit.
 
-### 1. Storage Cost Attacks
+## Multidimensional denial of service
 
-**Risk**: Attacker triggers expensive SSTORE operations to drain gas budgets.
+A transaction can exhaust compute gas, data size, KV updates, or state-growth
+limits. Dynamic storage gas also makes a zero-to-nonzero `SSTORE` more expensive
+as current state-growth utilization rises.
 
-**Attack pattern**:
-```solidity
-// If contract allows arbitrary key writes:
-function store(uint256 key, uint256 value) external {
-    data[key] = value; // 2M+ gas per new slot
-}
-// Attacker calls with 1000 unique keys = 2B gas
-```
-
-**Prevention**:
-- Validate keys against whitelist
-- Limit operations per transaction
-- Charge users for storage costs
-
-### 2. Volatile Data Timing Attacks
-
-**Risk**: Contract logic depends on block.timestamp precision.
-
-**Attack pattern**:
-```solidity
-// Auction ends at timestamp
-if (block.timestamp >= auctionEnd) {
-    // MegaETH block.timestamp has 1s granularity
-    // But MegaETH mini-blocks are very frequent
-    // Attacker can exploit timing window
-}
-```
-
-**Prevention**:
-- Use high-precision oracle for time-sensitive logic
-- Add grace periods for timing-dependent operations
-- Consider mini-block timing in design
-
-### 3. Reorg Considerations
-
-MegaETH has fast soft-finality characteristics, but reorgs are theoretically possible until L1 finalization.
-
-**Prevention**:
-- For high-value operations, wait for confirmation count
-- Use `realtime_sendRawTransaction` receipt as soft-finality
-- Consider L1 finalization for irreversible actions
-
-## Standard EVM Vulnerabilities
-
-These apply equally to MegaETH:
-
-### Reentrancy
+Design state-writing entry points so an untrusted caller cannot choose an
+unbounded number of new keys:
 
 ```solidity
-// ❌ Vulnerable
-function withdraw() external {
-    uint256 amount = balances[msg.sender];
-    (bool success, ) = msg.sender.call{value: amount}("");
-    require(success);
-    balances[msg.sender] = 0;
-}
-
-// ✅ Checks-Effects-Interactions
-function withdraw() external {
-    uint256 amount = balances[msg.sender];
-    balances[msg.sender] = 0; // Effect before interaction
-    (bool success, ) = msg.sender.call{value: amount}("");
-    require(success);
-}
-```
-
-### Access Control
-
-```solidity
-// ✅ Always validate
-modifier onlyOwner() {
-    require(msg.sender == owner, "Not owner");
-    _;
-}
-
-modifier onlyValidSigner(bytes memory signature) {
-    require(verifySignature(signature), "Invalid signature");
-    _;
-}
-```
-
-### Integer Overflow
-
-Solidity 0.8+ has built-in overflow checks. For older code:
-
-```solidity
-// Use OpenZeppelin SafeMath or upgrade to 0.8+
-```
-
-## Client-Side Security
-
-### RPC Endpoint Trust
-
-```typescript
-// ❌ Don't trust random RPCs
-const client = createClient({ rpc: userProvidedUrl });
-
-// ✅ Use known endpoints, verify responses
-const TRUSTED_RPCS = [
-  'https://mainnet.megaeth.com/rpc',
-  'https://rpc.alchemy.com/megaeth'
-];
-```
-
-### Transaction Simulation
-
-```typescript
-// Always simulate before signing
-const simulation = await client.simulateTransaction(tx);
-if (simulation.error) {
-  throw new Error(`Simulation failed: ${simulation.error}`);
-}
-```
-
-### Blockhash Expiry
-
-```typescript
-// MegaETH blocks are fast - blockhash expires quickly
-// Retry with fresh blockhash on failure
-async function submitWithRetry(tx: Transaction, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const blockhash = await client.getLatestBlockhash();
-      tx.blockhash = blockhash;
-      return await client.sendTransaction(tx);
-    } catch (e) {
-      if (!e.message.includes('blockhash')) throw e;
+function setValues(bytes32[] calldata keys, uint256[] calldata values) external {
+    if (keys.length != values.length || keys.length > MAX_UPDATES) {
+        revert InvalidBatch();
     }
-  }
-  throw new Error('Transaction expired');
+
+    for (uint256 i; i < keys.length; ++i) {
+        if (!allowedKey[keys[i]]) revert InvalidKey();
+        valueByKey[keys[i]] = values[i];
+    }
 }
 ```
 
-## Audit Recommendations
+Test the maximum accepted batch under target-network state conditions. Remote
+gas estimation is necessary, but it does not replace explicit bounds.
 
-1. **Use mega-evme** for transaction replay and gas profiling
-2. **Test with realistic gas costs** — fork testnet, don't simulate locally
-3. **Review SSTORE patterns** — each new slot is expensive
-4. **Check volatile data usage** — 20M total compute gas cap (retroactive) when block metadata is accessed
-5. **Verify CPI targets** — don't allow arbitrary external calls
+## Volatile data and timing
 
-## Security Review Questions
+Reading volatile block-environment data, including the high-precision timestamp
+system contract, can trigger gas detention. Under current rules, the first such
+access limits the remaining compute budget to the gas already consumed plus at
+most 20 million additional compute gas.
 
-1. Can an attacker trigger expensive storage operations?
-2. Does the contract rely on block.timestamp precision?
-3. Are there timing windows between mini-blocks that can be exploited?
-4. Is the contract vulnerable to reorgs before L1 finalization?
-5. Are external calls validated and limited?
-6. Is gas estimation done remotely (not locally)?
+Treat timestamp and block-number inputs as adversarial within the protocol's
+documented guarantees:
 
-## Monitoring
+- use explicit expiry and grace-period semantics;
+- avoid exact-equality timing checks;
+- keep time-sensitive execution paths bounded;
+- use the high-precision timestamp contract only when sub-second precision is
+  actually required.
 
-```typescript
-// Set up transaction monitoring
-const monitor = new TransactionMonitor({
-  rpc: 'https://mainnet.megaeth.com/rpc',
-  contracts: ['0x...'],
-  onSuspicious: (tx) => {
-    // Alert on unusual patterns
-    // - High gas usage
-    // - Repeated failures
-    // - Unusual call patterns
-  }
-});
-```
+## Real-time receipt semantics
 
-## Input Validation: Allowlist Over Blocklist
+`realtime_sendRawTransaction` returning a receipt means the transaction was
+executed by the current sequencer path. It is not a substitute for an
+application's confirmation or L1-finality policy. A request timeout is also
+inconclusive: query the receipt before resubmitting.
 
-Always validate user inputs with strict allowlists, never blocklists:
+Define confirmation requirements from the value and reversibility of the
+operation. Do not claim a universal confirmation count without an explicit
+protocol policy.
+
+## Standard EVM controls
+
+At minimum, review:
+
+- reentrancy and checks-effects-interactions;
+- role administration and upgrade authority;
+- signature domain separation, nonce use, expiry, and replay resistance;
+- oracle freshness and manipulation;
+- token behavior such as fee-on-transfer, rebasing, and missing return values;
+- slippage and deadline enforcement;
+- delegatecall and arbitrary-call targets;
+- denial of service through loops, callbacks, and revert propagation;
+- initialization and implementation-contract locking;
+- integer precision, rounding direction, and unchecked arithmetic.
+
+Use established libraries such as OpenZeppelin or Solady where their semantics
+fit the design. Do not copy an access-control or signature-verification sketch
+as if it were a complete security implementation.
+
+## Client and RPC trust
+
+An RPC can omit, delay, or falsify data. Use TLS, pin expected chain IDs, and
+avoid silently accepting an arbitrary endpoint for security-sensitive reads.
+For high-value decisions, compare independent sources or verify the relevant
+state cryptographically where the architecture supports it.
+
+Simulation is useful for catching reverts, but it is not an authorization or
+integrity boundary. State can change between simulation and inclusion, and
+MegaEVM-specific accounting must be evaluated by a compatible node.
+
+## Input validation
+
+Prefer positive validation over incomplete blocklists. Validate canonical
+encodings, lengths, ranges, addresses, token identities, selectors, and call
+targets before they affect state or delegated authority.
 
 ```solidity
-// ❌ Blocklist — misses null bytes, emoji, control chars, <script>, etc.
-function validate(string memory input) internal pure {
-    // Only blocks dots
-    require(!containsDot(input), "No dots");
-    // Everything else passes — including malicious inputs
-}
-
-// ✅ Allowlist — only permits known-safe characters
-function validate(string memory label) internal pure returns (string memory) {
-    bytes memory b = bytes(label);
-    require(b.length > 0 && b.length <= 255, "Invalid length");
-    require(b[0] != 0x2d && b[b.length - 1] != 0x2d, "No leading/trailing hyphens");
-
-    for (uint256 i; i < b.length; i++) {
-        bytes1 c = b[i];
-        require(
-            (c >= 0x61 && c <= 0x7a) || // a-z
-            (c >= 0x30 && c <= 0x39) || // 0-9
-            c == 0x2d,                   // hyphen
-            "Invalid character"
-        );
+function validateLabel(string memory label) internal pure {
+    bytes memory value = bytes(label);
+    if (value.length == 0 || value.length > 255) revert InvalidLabel();
+    if (value[0] == 0x2d || value[value.length - 1] == 0x2d) {
+        revert InvalidLabel();
     }
-    return label;
+
+    for (uint256 i; i < value.length; ++i) {
+        bytes1 c = value[i];
+        bool valid = (c >= 0x61 && c <= 0x7a) ||
+            (c >= 0x30 && c <= 0x39) || c == 0x2d;
+        if (!valid) revert InvalidLabel();
+    }
 }
 ```
 
-**Lesson:** A blocklist approach once let null bytes, spaces, `<script>` tags, emoji, and control characters through validation. 43 functional tests all passed but missed these cases. Always test inputs adversarially.
+The permitted character set above is only an example policy. Internationalized
+names require a deliberate normalization and confusables policy, not this ASCII
+validator.
 
-## Resources
+## Review checklist
 
-- **MegaEVM Spec**: https://github.com/megaeth-labs/mega-evm/blob/main/specs/MiniRex.md
-- **Security auditors**: Cantina, Spearbit (recommended by MegaETH team)
+1. Can an untrusted caller force unbounded new-slot writes, KV updates, calldata,
+   logs, or computation?
+2. Does any path read volatile data before performing heavy computation?
+3. Are real-time submission timeouts reconciled before retrying?
+4. Are slippage, deadlines, nonces, and signature domains explicit?
+5. Are external call and delegatecall targets constrained?
+6. Are node estimates and tests run against the target MegaETH network?
+7. Is monitoring based on receipts and events rather than explorer timing alone?
+8. Are upgrade, pause, recovery, and key-compromise procedures documented?
+
+Use [`mega-evme.md`](mega-evme.md) for execution replay and
+[`gas-model.md`](gas-model.md) for current resource limits.

@@ -1,209 +1,114 @@
-# mega-evme Debugging Skill
+# mega-evme Debugging
 
-Use this guide when the task is specifically about **local transaction replay, MegaEVM debugging, gas profiling, or spec-aware execution analysis**.
+`mega-evme` is the reference CLI in the MegaEVM repository for executing and
+debugging bytecode under MegaETH specifications. Use it for historical replay,
+MegaEVM resource accounting, system contracts, gas detention, traces, and
+reproducible execution fixtures.
 
-This is more specific than general testing guidance. Reach for `mega-evme` when you need to answer questions like:
-- why did this MegaETH transaction revert?
-- what exact MegaEVM rule/spec caused this behavior?
-- how do I replay a tx locally and inspect traces?
-- how do I debug gas detention, storage gas, or system-contract interactions?
-- how do I capture RPC/state locally for reproducible replay?
-
-## What mega-evme is best for
-
-- replaying historical MegaETH transactions
-- inspecting execution traces and call structure
-- understanding MegaEVM-specific gas / resource accounting
-- debugging system-contract interactions
-- reproducing failures locally with cached RPC/state inputs
-- comparing behavior across specs / hardfork assumptions
-
-## Mental model
-
-`mega-evme` is not just a trace dumper.
-It is the **reference local execution/debugging harness** for MegaEVM behavior.
-
-Use it when generic EVM tooling is not enough because the issue depends on:
-- MegaEVM resource accounting
-- volatile data / oracle detention
-- system contracts
-- spec-specific behavior
-- MegaETH RPC/state assumptions
-
-## Installation
+## Install
 
 ```bash
 git clone https://github.com/megaeth-labs/mega-evm
 cd mega-evm/bin/mega-evme
 cargo build --release
+./target/release/mega-evme --help
 ```
 
-## Core commands
+The repository is under active development. Build from a pinned commit when a
+debug artifact must be reproducible.
 
-### Replay a transaction
+## Replay on-chain execution
 
 ```bash
-mega-evme replay <txhash> --rpc https://mainnet.megaeth.com/rpc
+mega-evme replay \
+  --rpc https://mainnet.megaeth.com/rpc \
+  <TX_HASH>
+
+mega-evme replay \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --trace --tracer opcode \
+  --trace.opcode.enable-return-data \
+  --trace.output trace.json \
+  <TX_HASH>
+
+mega-evme replay \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --trace --tracer call \
+  --trace.call.with-log \
+  --trace.output calls.json \
+  <TX_HASH>
 ```
 
-### Replay with trace output
+Replay auto-detects the MegaEVM spec from the chain ID and target block's
+timestamp for recognized chains. Do not force the newest spec when investigating
+a historical transaction.
+
+For a deliberate what-if comparison, use `--override.spec`:
 
 ```bash
-mega-evme replay <txhash> --trace --trace.output trace.json --rpc <endpoint>
+mega-evme replay \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --override.spec Rex7 \
+  <TX_HASH>
 ```
 
-### Replay with call tracer
+Current `run` and `tx` commands default to `Rex7`; they do not perform replay's
+historical auto-detection.
+
+## Capture and offline replay
+
+Capture every RPC response used by a replay:
 
 ```bash
-mega-evme replay <txhash> --trace --tracer call --trace.output calls.json --rpc <endpoint>
+mega-evme replay \
+  --rpc https://mainnet.megaeth.com/rpc \
+  --rpc.capture-file ./captures/tx.json \
+  <TX_HASH>
 ```
 
-## Newer workflows worth using
+Replay only from that capture, without network access:
 
-Recent mega-evme updates added better support for local reproducibility via cached RPC/state inputs.
-When debugging tricky issues, prefer workflows that preserve inputs instead of relying on a fresh remote replay every time.
+```bash
+mega-evme replay \
+  --rpc.replay-file ./captures/tx.json \
+  <TX_HASH>
+```
 
-### RPC capture / replay
-Use RPC capture/replay flows when you want deterministic local debugging or to share a reproducible artifact.
+`--rpc.capture-file` requires `--rpc`. `--rpc.replay-file` is mutually exclusive
+with live RPC and cache options. These are replay-command workflows, not generic
+offline flags for `run` or `tx`.
 
-Look at the current mega-evme docs for:
-- `--rpc.capture-file`
-- `--rpc.replay-file`
+For a standardized execution fixture with post-state checks, add
+`--dump-fixture <PATH>` during capture. Fixture dumping rejects transaction and
+spec overrides because those would no longer represent the on-chain execution.
 
-These are useful when:
-- the live RPC is flaky
-- state may change between debugging attempts
-- you want to hand a reproducible case to another engineer or agent
+## Other commands
 
-### Offline / cached replay mindset
-If you hit a bug that is hard to reproduce, preserve:
-- tx hash
-- block number
-- trace output
-- rpc capture file / replay file if available
-- exact spec/hardfork assumptions
+- `run`: execute bytecode or initcode with a controlled local environment.
+- `tx`: execute a transaction, optionally forking state from a remote RPC.
+- `--prestate` / `--dump`: load and persist local account state.
+- `--fork.block`: pin the remote post-state used by `tx`.
+- `--tracer opcode|call|pre-state`: choose trace shape.
 
-Do not rely only on “it reverted once on mainnet/testnet.”
+Check `mega-evme <COMMAND> --help` at the installed commit before scripting
+flags.
 
-## Spec-aware debugging rules
+## Debugging order
 
-### 1. Start from the current documented MegaEVM / REX5-era baseline
-When replaying or diagnosing a tx, treat the current documented MegaEVM / REX5-era behavior as the default baseline. Only branch into older spec labels when the task explicitly depends on historical differences such as:
-- EQUIVALENCE / MINI_REX / REX / REX1 / REX2 / REX3 / REX4 / REX5
+1. Confirm calldata, balances, allowances, roles, and the revert payload.
+2. Replay under the auto-detected historical spec.
+3. Inspect compute, data, KV-update, and state-growth accounting.
+4. Check whether volatile-data access triggered gas detention.
+5. Check system-contract and dynamic-address assumptions.
+6. Capture the RPC inputs before handing the case to another engineer.
+7. Turn the isolated behavior into a focused Foundry regression test.
 
-This matters especially for:
-- Oracle behavior
-- KeylessDeploy
-- SELFDESTRUCT
-- gas detention
-- per-frame resource accounting
-- system-contract semantics
+Save the transaction hash, chain ID, block number, `mega-evme` commit, trace,
+capture or fixture, and any overrides. A synchronous receipt is evidence of
+submission/execution behavior; it does not itself make later replay independent
+of the original state and hardfork.
 
-### 2. Treat older-spec differences as conditional, not the current baseline
-Current MegaETH docs present the REX5-era system-contract set and behavior as part of the documented MegaEVM baseline, including:
-- `SequencerRegistry`
-- dynamic system address resolution
-- Oracle v2.0.0 authority changes
-- caller-account update deduplication
-- stricter keyless trailing-bytes rejection
+## Primary source
 
-Only treat those as upgrade-conditional when analyzing older historical behavior or an explicitly non-current target environment.
-
-### 3. Distinguish execution bugs from accounting differences
-Some changes only affect:
-- data-size accounting
-- KV update accounting
-- gas/resource usage reporting
-
-They may not change final state transitions.
-
-## What to check first when a tx fails
-
-### Contract-level / generic
-- revert reason
-- bad calldata / bad approvals
-- insufficient balance / allowance
-- owner/minter/role checks
-
-### MegaEVM-specific
-- storage gas blow-up from new slot writes
-- volatile data access / detention behavior
-- per-frame resource budget exhaustion
-- state-growth / KV update / data-size limits
-- system-contract access assumptions
-- keyless deploy encoding rules
-
-## Resource-accounting issues
-
-Use mega-evme when the user says things like:
-- "works on standard EVM sim, fails on MegaETH"
-- "gas estimate looks wrong"
-- "it only fails when block.timestamp is touched"
-- "nested calls revert unexpectedly"
-
-Common MegaEVM-specific suspects:
-- expensive first-time storage writes
-- volatile data compute cap
-- frame-level budget depletion
-- spec-version differences in accounting
-
-## Oracle / system-contract debugging
-
-Be careful with statements about Oracle/system behavior.
-There are meaningful differences between older specs and the current REX5-era baseline.
-
-For debugging, verify:
-- whether Oracle storage access actually occurred
-- whether gas detention was triggered by oracle reads vs block env access
-- whether system-address assumptions are hardcoded or dynamic for the target spec
-
-## When to prefer mega-evme over Foundry alone
-
-Prefer mega-evme when:
-- the issue depends on live chain context
-- standard local simulation disagrees with MegaETH behavior
-- you need spec-aware replay
-- you need MegaEVM-specific accounting details
-
-Foundry is still great for:
-- writing tests
-- isolated contract debugging
-- rapid iteration
-
-But mega-evme is the right tool for **"what exactly happened on MegaETH?"**
-
-## Relationship to Foundry
-
-A good debugging workflow is often:
-1. identify failing tx / contract path
-2. replay in mega-evme
-3. extract the specific failure mode
-4. write a focused Foundry regression test
-5. use mega-evme again if needed to compare against chain behavior
-
-## Practical artifacts to save
-
-When debugging a serious issue, save:
-- tx hash
-- block number
-- contract addresses involved
-- trace output
-- replay/capture files
-- notes on the suspected spec-dependent behavior
-
-This makes the problem transferable between agents/humans.
-
-## Anti-patterns
-
-Do not:
-- treat mega-evme as just another generic trace tool
-- ignore spec version when analyzing system-contract behavior
-- ignore the current documented REX5-era baseline when no historical target has been specified
-- rely only on live RPC replay if reproducibility matters
-- conflate synchronous receipt return with full execution/debug determinism
-
-## Pointer docs
-
-For up-to-date command flags and workflows, consult:
-- local repo: `knowledge/github/mega-evm/docs/mega-evme/**`
-- upstream repo: `https://github.com/megaeth-labs/mega-evm/tree/main/docs/mega-evme`
+- https://github.com/megaeth-labs/mega-evm/tree/main/docs/mega-evme
+- https://github.com/megaeth-labs/mega-evm/tree/main/bin/mega-evme

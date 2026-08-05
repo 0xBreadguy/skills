@@ -61,12 +61,13 @@ Download archives from `dist/` or build them locally:
 npm run build
 ```
 
-The build script syncs `skills/moss-wallet-cli/SKILL.md` and
-`skills/moss-wallet-cli/references/permissions.md` from the latest stable
-`megaeth-labs/wallet-cli` GitHub release before packaging. It keeps this repo's
-`moss-wallet-cli` skill name and adds a short routing note to use
-`megaeth-developer-skills` for protocol-specific guidance. Override the source
-with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release testing.
+The build script syncs `skills/moss-wallet-cli/SKILL.md` and the complete
+released `references/` tree from the latest stable `megaeth-labs/wallet-cli`
+GitHub release before packaging. It verifies the release's published SHA-256,
+keeps this repo's `moss-wallet-cli` skill name, and adds a short routing note to
+use `megaeth-developer-skills` for protocol-specific guidance. Override the
+source with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release
+testing.
 
 Then unzip into the target agent's skill directory:
 
@@ -126,9 +127,15 @@ guidance under `skills/*/references/`.
 After editing skills or references:
 
 ```bash
-npm run build
-npx skills add . --list
+npm run validate
 ```
+
+Validation refreshes the MOSS CLI source and ZIP archives, checks skill
+frontmatter, local links, bundled script syntax and behavior, and archive
+integrity, then runs Skills CLI discovery. See the
+[public-release information audit](docs/release-information-audit.md) for the
+verified source snapshots, corrected claims, and unresolved verification
+catalog.
 
 The MOSS CLI behavior in `moss-wallet-cli` should stay aligned with
 `megaeth-labs/wallet-cli`; `npm run build` refreshes the copied CLI skill

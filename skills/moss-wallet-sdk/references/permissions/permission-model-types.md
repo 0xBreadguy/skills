@@ -2,7 +2,7 @@
 
 # mega.grantPermissions()
 
-Grant scoped delegated permissions (spend caps + call rules + expiry) for session-style execution. After a grant, [`callContract()`](call-contract.md) with `silent: true` can execute matching actions without prompting. See [Smart Approvals (Policy Engine)](../core-sdk/permissions.md) for the conceptual deep-dive.
+Grant scoped delegated permissions (spend caps + call rules + expiry) for session-style execution. After a grant, [`callContract()`](../methods-reference.md#megacallcontract) with `silent: true` can execute matching actions without prompting. See [Smart Approvals (Policy Engine)](../permissions.md) for the conceptual deep-dive.
 
 ## Signature
 
@@ -32,7 +32,7 @@ interface Permission {
   permissions: {
     calls: { to: string; signature: string }[];  // Allowed contract+function pairs
     spend: {
-      limit: bigint;               // Spend cap in WEI, e.g. 5000000000000000n
+      limit: bigint;               // Spend cap in base units, e.g. 5000000000000000n wei
       period: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
       token?: `0x${string}`;
     }[];
@@ -41,7 +41,7 @@ interface Permission {
 ```
 
 {% hint style="warning" %}
-**`spend[].limit` is a `bigint` in wei**, e.g. `5000000000000000n` = 0.005 ETH. Don't pass a decimal string here.
+**`spend[].limit` is a `bigint` in integer base units**. For native ETH, that means wei, e.g. `5000000000000000n` = 0.005 ETH. For ERC-20 tokens, use the token's decimals, e.g. `parseUnits('25', 18)` for 25 units of an 18-decimal token. Don't pass a decimal string here.
 {% endhint %}
 
 {% hint style="info" %}
@@ -53,16 +53,20 @@ The `permissions` field is doubly nested by design: `request.permissions` (the `
 ## Example
 
 ```typescript
+import { parseEther } from 'viem';
+
+const vault = '0xVaultContractAddress';
 const expiry = Math.floor(Date.now() / 1000) + 60 * 30;
 
 await mega.grantPermissions({
   permissions: {
     expiry,
     permissions: {
-      calls: [{ to: '0xContractAddress', signature: 'mint(uint256)' }],
+      calls: [{ to: vault, signature: 'deposit()' }],
       spend: [{
-        limit: 1000000000000000n,
+        limit: parseEther('0.001'),
         period: 'day',
+        // token omitted for native ETH
       }],
     },
   },
@@ -82,8 +86,10 @@ type GrantPermissionsResponse = {
 
 Each `calls[]` entry should include both `to` (contract address) and `signature` (function signature, e.g., `'mint(uint256)'`). `to`-only or `signature`-only matching is not the documented integration model.
 
+`calls[]` and `spend[]` are separate gates. A spend cap alone does not authorize a silent contract write; the matching call scope must also be present.
+
 ## Notes
 
 - **Use least-privilege defaults:** narrow calls, low spend caps, short expiry (24h max for active sessions, 7 days for background agents).
-- Expose a revoke control in your UI ([`revokePermissions()`](revoke-permissions.md)). Users can also revoke from wallet settings.
+- Expose a revoke control in your UI ([`revokePermissions()`](../methods-reference.md)). Users can also revoke from wallet settings.
 - See [Best Practices](../best-practices.md) for production permission patterns.

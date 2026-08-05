@@ -4,12 +4,12 @@ Use this for `.mega` / MegaNames developer integration. For agent-operated
 `mega moss` execution recipes, read
 `references/protocols/moss-cli/meganames.md`.
 
-## Source Status
+## Sources
 
-This file adapts the MegaNames skill from
-`https://github.com/0xBreadguy/mega-names/tree/main/skill`. Treat that source
-and MegaNames contract code/docs as the project source material. Verify
-addresses and ABI signatures before production writes.
+This guide is checked against the MegaNames contract and skill source at
+`https://github.com/0xBreadguy/mega-names`. The live project frontend is
+`https://dotmega.domains`. Re-check the repository deployment record and
+deployed ABI before production writes.
 
 ## Networks
 
@@ -31,17 +31,19 @@ Main frontend: `https://dotmega.domains`.
 | SubdomainLogic | `0xf09fB5cB77b570A30D68b1Aa1d944256171C5172` |
 | Fee Recipient | `0x25925C0191E8195aFb9dFA35Cd04071FF11D2e38` |
 
-## Testnet Contracts
+## Testnet status
 
-| Contract | Address |
-| --- | --- |
-| MegaNames | `0x8F0310eEDcfB71E5095ee5ce4f3676D9cEA65101` |
-| MockUSDM | `0xa8a7Ea151E366532ce8b0442255aE60E0ff2F833` |
+MegaNames source files currently contain conflicting testnet deployment sets:
+the packaged skill/config references an older pair, while `DEPLOYMENTS.md`
+records a newer pair. All candidate addresses had bytecode during the audit,
+so code presence does not resolve which deployment is canonical. Resolve the
+current testnet contracts from MegaNames before generating testnet writes.
 
 ## Defaults And Invariants
 
-- Use `eth_sendRawTransactionSync` for direct write submissions when the client
-  supports it.
+- Prefer `realtime_sendRawTransaction` for direct submissions that benefit from
+  an inline receipt. Standard submission remains valid; reconcile a real-time
+  timeout before retrying.
 - Use `registerWithPermit` where the app can obtain an ERC2612 USDM permit;
   otherwise approve USDM and call `register`.
 - Calculate fees with `calculateFee(labelLength, numYears)` instead of
@@ -167,7 +169,7 @@ MegaNames can link a `.mega` token to a Warren on-chain website or container.
 
 | Operation | Contract | Signature |
 | --- | --- | --- |
-| set Warren contenthash | MegaNames | `setWarrenContenthash(uint256,uint256,bool)` |
+| set Warren contenthash | MegaNames | `setWarrenContenthash(uint256,uint32,bool)` |
 | read Warren link | MegaNames | `warren(uint256)` |
 
 `isMaster = true` identifies a MasterNFT site. `isMaster = false` identifies a

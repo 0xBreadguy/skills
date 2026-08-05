@@ -2,7 +2,7 @@
 
 # React Hooks at a Glance
 
-A scannable tour of every hook in `@megaeth-labs/wallet-sdk-react`, grouped by purpose. For full signatures, options, and per-hook examples, see [React SDK Reference](overview.md). Each hook maps to a core SDK method — the corresponding method page is the source of truth for parameters and return types.
+A scannable tour of every hook in `@megaeth-labs/wallet-sdk-react`, grouped by purpose. For full signatures, options, and per-hook examples, see [React SDK Reference](../react.md). Each hook maps to a core SDK method — the corresponding method page is the source of truth for parameters and return types.
 
 Mutation hooks wrap actions (`mutate`, `mutateAsync`). Query hooks (`useBalances`, `usePermissions`) gate themselves on connected status.
 
@@ -23,7 +23,7 @@ connect.mutate();
 disconnect.mutate();
 ```
 
-→ [`mega.connect()`](../methods/connect.md), [`mega.disconnect()`](../methods/disconnect.md)
+→ [`mega.connect()`](../methods-reference.md#megaconnect), [`mega.disconnect()`](../methods-reference.md#megadisconnect)
 
 ## Signing
 
@@ -37,7 +37,7 @@ signData.mutate({ data: { /* EIP-712 payload */ } });
 authenticate.mutate();
 ```
 
-→ [`mega.signMessage()`](../methods/sign-message.md), [`mega.signData()`](../methods/sign-data.md), [`mega.authenticate()`](../methods/authenticate.md)
+→ [`mega.signMessage()`](../methods-reference.md#megasignmessage), [`mega.signData()`](../methods-reference.md#megasigndata), [`mega.authenticate()`](../methods-reference.md#megaauthenticate)
 
 ## Transactions
 
@@ -57,7 +57,7 @@ swap.mutate({ fromToken: 'native', toToken: '0xfeed...' });
 deposit.mutate();
 ```
 
-→ [`mega.transfer()`](../methods/transfer.md), [`mega.send()`](../methods/send.md), [`mega.swap()`](../methods/swap.md), [`mega.deposit()`](../methods/deposit.md)
+→ [`mega.transfer()`](../methods-reference.md#megatransfer), [`mega.send()`](../methods-reference.md#megasend), [`mega.swap()`](../methods-reference.md#megaswap), [`mega.deposit()`](../methods-reference.md#megadeposit)
 
 ## Contracts
 
@@ -80,7 +80,7 @@ getFromContract.mutate({
 });
 ```
 
-→ [`mega.callContract()`](../methods/call-contract.md), [`mega.getFromContract()`](../methods/get-from-contract.md)
+→ [`mega.callContract()`](../methods-reference.md#megacallcontract), [`mega.getFromContract()`](../methods-reference.md#megagetfromcontract)
 
 ## Smart Approvals
 
@@ -103,7 +103,7 @@ revokePermissions.mutate();
 console.log(permissions.data);
 ```
 
-→ [`mega.grantPermissions()`](../methods/grant-permissions.md), [`mega.revokePermissions()`](../methods/revoke-permissions.md), [`mega.getPermissions()`](../methods/get-permissions.md)
+→ [`mega.grantPermissions()`](../methods-reference.md#megagrantpermissions), [`mega.revokePermissions()`](../methods-reference.md#megarevokepermissions), [`mega.getPermissions()`](../methods-reference.md#megagetpermissions)
 
 ## Balances
 
@@ -112,7 +112,7 @@ const balances = useBalances(['0x0000000000000000000000000000000000000000']);
 console.log(balances.data);
 ```
 
-→ [`mega.balances()`](../methods/balances.md)
+→ [`mega.balances()`](../methods-reference.md#megabalances)
 
 ## Notes
 

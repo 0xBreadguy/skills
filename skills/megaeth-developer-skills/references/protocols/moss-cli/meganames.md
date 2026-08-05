@@ -40,7 +40,7 @@ Use exact function scopes after verifying the ABI:
 | buy subdomain | SubdomainRouter | `register(uint256,string,address)` |
 | batch buy subdomains | SubdomainRouter | `registerBatch(uint256,string[],address)` |
 | set token gate | SubdomainLogic | `setTokenGate(uint256,address,uint256)` |
-| set Warren contenthash | MegaNames | `setWarrenContenthash(uint256,uint256,bool)` |
+| set Warren contenthash | MegaNames | `setWarrenContenthash(uint256,uint32,bool)` |
 
 Do not grant wildcard scopes.
 
@@ -237,11 +237,11 @@ WARREN_TOKEN_ID=$WARREN_TOKEN_ID_BASE10
 IS_MASTER=true
 
 mega moss create-key \
-  --allow-call "$MEGANAMES:setWarrenContenthash(uint256,uint256,bool)" \
+  --allow-call "$MEGANAMES:setWarrenContenthash(uint256,uint32,bool)" \
   --label "meganames-warren-link"
 
 DATA=$(cast calldata \
-  'setWarrenContenthash(uint256,uint256,bool)' \
+  'setWarrenContenthash(uint256,uint32,bool)' \
   "$TOKEN_ID" "$WARREN_TOKEN_ID" "$IS_MASTER")
 
 mega moss execute --to "$MEGANAMES" --data "$DATA"

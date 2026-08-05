@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -75,7 +76,7 @@ async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'moss-skills-build',
+      'User-Agent': 'megaeth-agent-skills-build',
     },
   });
   if (!response.ok) {
@@ -86,12 +87,42 @@ async function fetchJson(url) {
 
 async function downloadFile(url, output) {
   const response = await fetch(url, {
-    headers: { 'User-Agent': 'moss-skills-build' },
+    headers: { 'User-Agent': 'megaeth-agent-skills-build' },
   });
   if (!response.ok) {
     throw new Error(`failed to download ${url}: ${response.status} ${response.statusText}`);
   }
   writeFileSync(output, Buffer.from(await response.arrayBuffer()));
+}
+
+function verifySha256(file, checksumFile) {
+  const checksumText = readFileSync(checksumFile, 'utf8');
+  const expected = checksumText.match(/\b[0-9a-fA-F]{64}\b/)?.[0]?.toLowerCase();
+  if (!expected) {
+    throw new Error(`invalid SHA-256 file: ${checksumFile}`);
+  }
+  const actual = createHash('sha256').update(readFileSync(file)).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`SHA-256 mismatch for ${basename(file)}: expected ${expected}, got ${actual}`);
+  }
+}
+
+function validateTarPaths(archive) {
+  const result = spawnSync('tar', ['-tzf', archive], {
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`could not inspect ${basename(archive)}`);
+  }
+  for (const entry of result.stdout.split(/\r?\n/).filter(Boolean)) {
+    if (entry.startsWith('/') || entry.split('/').includes('..')) {
+      throw new Error(`unsafe path in ${basename(archive)}: ${entry}`);
+    }
+  }
 }
 
 function findWalletCliReleaseRoot(root) {
@@ -143,11 +174,21 @@ async function syncWalletCliSkillFromLatestRelease() {
   if (!asset) {
     throw new Error(`latest wallet-cli release ${release.tag_name} has no mega-wallet-cli tarball`);
   }
+  const checksumAsset = release.assets?.find(
+    (candidate) => candidate.name === `${asset.name}.sha256`,
+  );
+  if (!checksumAsset) {
+    throw new Error(`latest wallet-cli release ${release.tag_name} has no SHA-256 for ${asset.name}`);
+  }
 
   const stage = mkdtempSync(join(tmpdir(), 'wallet-cli-release-'));
   try {
     const archive = join(stage, asset.name);
+    const checksum = join(stage, checksumAsset.name);
     await downloadFile(asset.browser_download_url, archive);
+    await downloadFile(checksumAsset.browser_download_url, checksum);
+    verifySha256(archive, checksum);
+    validateTarPaths(archive);
     const result = spawnSync('tar', ['-xzf', archive, '-C', stage], { stdio: 'inherit' });
     if (result.error) {
       throw result.error;
@@ -163,11 +204,10 @@ async function syncWalletCliSkillFromLatestRelease() {
     );
     const referencesDir = join(walletCliSkillDir, 'references');
     rmSync(referencesDir, { recursive: true, force: true });
-    mkdirSync(referencesDir, { recursive: true });
-    cpSync(
-      join(releaseRoot, 'references', 'permissions.md'),
-      join(referencesDir, 'permissions.md'),
-    );
+    cpSync(join(releaseRoot, 'references'), referencesDir, {
+      recursive: true,
+      dereference: true,
+    });
     console.log(`synced moss-wallet-cli from ${walletCliRepo} ${release.tag_name}`);
   } finally {
     rmSync(stage, { recursive: true, force: true });
@@ -193,7 +233,7 @@ for (const skillPath of skillRoots) {
 }
 
 for (const group of groups) {
-  const stage = mkdtempSync(join(tmpdir(), 'moss-skills-dist-'));
+  const stage = mkdtempSync(join(tmpdir(), 'megaeth-agent-skills-dist-'));
   try {
     const entries = group.skills.map((skillPath) => copySkillToStage(skillPath, stage));
     runZip(join(distDir, group.name), stage, entries);

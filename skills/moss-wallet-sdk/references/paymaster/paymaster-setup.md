@@ -32,8 +32,8 @@ Sponsors can pay fees with `ETH` (default) or `USDm`.
 | Provider | Status | Notes |
 | --- | --- | --- |
 | [Porto-compatible self-hosted paymaster](https://porto.sh/sdk/guides/sponsoring) | Live | Use your own sponsor account + approval endpoint and pass it into MOSS via `sponsorUrl`. |
-| [Alchemy Gas Manager](https://www.alchemy.com/docs/wallets/supported-chains) | Coming soon | Alchemy publicly notes MegaETH mainnet support is planned Day 1. |
-| MegaETH managed paymaster | In progress | MegaETH's managed paymaster service will be available for partner teams. |
+| [Alchemy Gas Manager](https://www.alchemy.com/docs/wallets/supported-chains) | MegaETH supported by Alchemy | Alchemy lists MegaETH gas sponsorship and ERC-20 gas payments. Direct compatibility with the MOSS `sponsorUrl` request/response contract was not verified; use a tested adapter if required. |
+| MegaETH managed paymaster | Not publicly verified | Do not promise availability; confirm the current partner offering directly with MegaETH Labs. |
 
 ## Client Setup
 
@@ -80,44 +80,20 @@ Keep paymaster decisions server-side. Never expose sponsorship policy logic in t
 Your paymaster endpoint must do four things for every incoming sponsorship request:
 
 1. Receive the proposed UserOperation payload from the wallet flow.
-2. Validate against your rules (allowlisted contracts, budgets, rate limits).
+2. Decode the signed operation and validate every inner call against exact
+   target, selector, value, argument, sender, and chain rules.
 3. Sign and return sponsorship data when approved.
 4. Reject quickly with structured errors when rules fail.
 
-```typescript
-import express from 'express';
+Do not authorize a client-supplied `target` field separately from an opaque
+UserOperation. Decode the operation format used by the configured provider,
+derive its sender, chain ID, and complete call batch, then apply policy to those
+decoded values. Reject any shape the server cannot decode.
 
-const app = express();
-app.use(express.json());
-
-function isAllowedContract(target?: string) {
-  const allowlist = new Set([
-    '0xYourPrimaryContract',
-    '0xYourRewardsContract',
-  ]);
-  return !!target && allowlist.has(target);
-}
-
-app.post('/sponsor', async (req, res) => {
-  const { userOperation, account, target } = req.body ?? {};
-
-  if (!userOperation || !account) {
-    return res.status(400).json({ error: 'INVALID_REQUEST' });
-  }
-
-  if (!isAllowedContract(target)) {
-    return res.status(403).json({ error: 'CONTRACT_NOT_ALLOWED' });
-  }
-
-  const withinBudget = true; // replace with your quota + spend checks
-  if (!withinBudget) {
-    return res.status(429).json({ error: 'SPONSOR_BUDGET_EXCEEDED' });
-  }
-
-  // Replace with your paymaster signing implementation.
-  return res.json({ paymasterAndData: '0xSignedPaymasterPayload' });
-});
-```
+Start from
+[`scripts/sponsor-endpoint-snippet.ts`](../../scripts/sponsor-endpoint-snippet.ts).
+The skeleton intentionally fails closed until its provider-specific operation
+decoder and signing response are implemented.
 
 ### Risks to Protect Against
 
@@ -125,7 +101,7 @@ app.post('/sponsor', async (req, res) => {
 | --- | --- |
 | Rate limiting | Per-user and per-IP limits with short windows and burst caps. |
 | Budget caps | Daily/monthly sponsorship ceilings globally and per-account. |
-| Contract allowlists | Only sponsor calls to approved contracts and methods. |
+| Signed-call policy | Decode every inner call and enforce target, selector, native value, relevant arguments, sender, and chain. |
 | Monitoring | Alert on error spikes, spend anomalies, and endpoint latency. |
 
 ## Explicit Mode
@@ -172,5 +148,5 @@ await mega.transfer({
 
 ## Related
 
-- [Best Practices](best-practices.md) — security guidance for permissions, session keys, and production hardening.
-- [Server Verify](server-verify.md) — verify SIWE signature payloads on your backend auth flows.
+- [Best Practices](../best-practices.md) — security guidance for permissions, session keys, and production hardening.
+- [Server Verify](../server-verify.md) — verify SIWE signature payloads on your backend auth flows.

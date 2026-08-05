@@ -1,32 +1,36 @@
-# Prism On MegaETH
+# Prism on MegaETH
 
-Use this for dApp developer integration guidance. For `mega moss` scoped-key
-execution recipes, read `references/protocols/moss-cli/prism.md`.
+Use this for Prism discovery and integration due diligence. Prism's site and
+read endpoints are live, but this audit did not find a protocol-owned public
+contract repository, ABI package, deployment manifest, or developer
+documentation that establishes the write interface. Do not turn the inherited
+third-party material into transaction calldata until Prism publishes or directly
+confirms those artifacts.
 
-## Source Status
+## Verified public surface
 
-This file adapts the Prism material from
-`megaeth-ai-developer-skills/prism-dex.md` so the Awesome MegaETH AI protocol
-coverage is represented here. Treat it as implementation guidance that still
-needs verification against Prism docs, package exports, and deployed contract
-state before production or value-bearing writes.
+- Application: https://prismfi.cc
+- Token list: https://prismfi.cc/tokenlist.json
+- Pool list: https://prismfi.cc/api/pools/list
+- Swap-pool discovery: https://prismfi.cc/api/swaps/swap-pools
+- Network: MegaETH mainnet, chain ID `4326`
 
-Do not use Awesome MegaETH AI or MTRKR MCP as source-of-truth for executable
-Prism calldata. MTRKR, if available, is only an external read-only tooling
-candidate and needs due diligence before recommendation or use.
+The token-list and pool-list endpoints returned data during the release audit.
+The swap-pool endpoint is parameterized and rejected a request without valid
+token input, which confirms the route exists but not its complete production
+contract.
 
-## Network
+Prefer the canonical MegaETH token list for general token identity. Compare it
+with Prism's list when deciding whether Prism supports a token; list membership
+does not prove a liquid route.
 
-| Network | Chain ID | RPC |
-| --- | ---: | --- |
-| MegaETH Mainnet | `4326` | `https://mainnet.megaeth.com/rpc` |
-| MegaETH Testnet | `6343` | `https://carrot.megaeth.com/rpc` |
+## Unverified deployment candidates
 
-## Mainnet Contracts
+The following addresses came from inherited partner guidance, and each had
+bytecode on MegaETH mainnet during the audit. Bytecode presence does **not**
+verify the label, ABI, upgrade state, or safe call semantics.
 
-Verify these addresses against official Prism sources before executing:
-
-| Contract | Address |
+| Inherited label | Candidate address |
 | --- | --- |
 | Factory | `0x1adb8f973373505bb206e0e5d87af8fb1f5514ef` |
 | QuoterV2 | `0xdd79c72c21f7dcd1d034b55caf9177bc42f5df0c` |
@@ -37,174 +41,59 @@ Verify these addresses against official Prism sources before executing:
 | SelectiveTaxRouter | `0x19956ebe69659c78ad4ee500694287bc6f67c4da` |
 | SelectiveTaxRouterPermit2 | `0x4c2c989f20794fa92d3082a3d49d9a430face555` |
 | Multicall2 | `0x3064c9b0fd9bf73caf668c9c621bb12ec0cccb0c` |
-| WETH9 | `0x4200000000000000000000000000000000000006` |
 
-## Core Tokens
+The inherited pool init-code hash, claimed tax-router ABI, fee-tier mapping, and
+Uniswap V3 compatibility were not independently established by a public
+protocol-owned source. They are intentionally not presented as executable
+guidance here.
 
-Prefer `mega-tokenlist` or Prism's tokenlist endpoint for current metadata.
+## Read-only discovery workflow
 
-| Token | Address | Decimals |
-| --- | --- | ---: |
-| WETH | `0x4200000000000000000000000000000000000006` | 18 |
-| USDm | `0xfafddbb3fc7688494971a79cc65dca3ef82079e7` | 18 |
-| BTC.b | `0xb0f70c0bd6fd87dbeb7c10dc692a2a6106817072` | 8 |
-| USDT0 | `0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb` | 6 |
+```ts
+const [tokensResponse, poolsResponse] = await Promise.all([
+  fetch("https://prismfi.cc/tokenlist.json"),
+  fetch("https://prismfi.cc/api/pools/list"),
+]);
 
-## Architecture
-
-Prism is described as Uniswap V3-compatible with a fork-specific pool address
-computation rule: use ABI-encoded CREATE2 salt, not packed salt.
-
-Prism pool init code hash:
-
-```text
-0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54
-```
-
-Default router choice:
-
-| Flow | Router |
-| --- | --- |
-| non-taxable direct swap | `SwapRouter02` or `UniversalRouter` |
-| taxable-token flow | `SelectiveTaxRouter` |
-| Permit2 taxable flow | `SelectiveTaxRouterPermit2` |
-| quotes | `QuoterV2` |
-| NFT liquidity positions | `NonfungiblePositionManager` |
-
-Minimal dApp dependencies:
-
-```bash
-npm install viem @uniswap/v3-sdk @uniswap/sdk-core
-```
-
-## Swap Integration
-
-Quote with `QuoterV2` only. Execute swaps with router contracts only. Re-quote
-right before submit and apply explicit slippage bounds.
-
-Common signatures:
-
-| Operation | Contract | Signature |
-| --- | --- | --- |
-| quote exact input single | QuoterV2 | `quoteExactInputSingle((address,address,uint256,uint24,uint160))` |
-| quote exact output single | QuoterV2 | `quoteExactOutputSingle((address,address,uint256,uint24,uint160))` |
-| non-tax exact input single | SwapRouter02 | `exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))` |
-| non-tax exact output single | SwapRouter02 | `exactOutputSingle((address,address,uint24,address,uint256,uint256,uint160))` |
-| multi-hop exact input | SwapRouter02 | `exactInput((bytes,address,uint256,uint256))` |
-| taxable exact input single | SelectiveTaxRouter | `exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))` |
-| taxable exact output single | SelectiveTaxRouter | `exactOutputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))` |
-| tax check | SelectiveTaxRouter | `willBeTaxed(address,address,address)` |
-| tax quote | SelectiveTaxRouter | `calculateTax(address,address,address,uint256)` |
-| ERC20 approval | ERC20 input token | `approve(address,uint256)` |
-
-For taxable-token flows:
-
-1. Call `willBeTaxed(tokenIn, tokenOut, userAddress)`.
-2. If taxable, call `calculateTax(tokenIn, tokenOut, userAddress, amountIn)`.
-3. Use `SelectiveTaxRouter` or `SelectiveTaxRouterPermit2`.
-4. Use `exactInputSingle` or `exactOutputSingle`; do not invent a
-   `swapWithTax` function.
-5. Add tax headroom for exact-output flows.
-
-For multi-hop swaps, encode paths as alternating token addresses and `uint24`
-fees:
-
-```typescript
-import { encodePacked } from "viem";
-
-const path = encodePacked(
-  ["address", "uint24", "address", "uint24", "address"],
-  [WETH, 3000, USDM, 3000, TOKEN_OUT],
-);
-```
-
-Fee tiers:
-
-| Fee | Use case | Tick spacing |
-| ---: | --- | ---: |
-| `100` | stablecoin pairs | 1 |
-| `500` | stable-correlated pairs | 10 |
-| `3000` | standard pairs | 60 |
-| `10000` | exotic/volatile pairs | 200 |
-
-## Liquidity Positions
-
-Prism liquidity positions are NFT based.
-
-Common function signatures:
-
-| Operation | Signature |
-| --- | --- |
-| mint position | `mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256))` |
-| increase liquidity | `increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))` |
-| decrease liquidity | `decreaseLiquidity((uint256,uint128,uint256,uint256,uint256))` |
-| collect fees/tokens | `collect((uint256,address,uint128,uint128))` |
-
-Always sort `token0` and `token1` by address before minting. Read pool state,
-current tick, and liquidity before proposing a range.
-
-## Pool Discovery
-
-Prism pool address computation uses ABI-encoded salt:
-
-```typescript
-import { encodeAbiParameters, getCreate2Address, keccak256 } from "viem";
-
-const INIT_CODE_HASH =
-  "0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54";
-
-function getPrismPoolAddress(factory, tokenA, tokenB, fee) {
-  const [token0, token1] =
-    tokenA.toLowerCase() < tokenB.toLowerCase()
-      ? [tokenA, tokenB]
-      : [tokenB, tokenA];
-
-  const salt = keccak256(
-    encodeAbiParameters(
-      [
-        { type: "address", name: "token0" },
-        { type: "address", name: "token1" },
-        { type: "uint24", name: "fee" },
-      ],
-      [token0, token1, fee],
-    ),
-  );
-
-  return getCreate2Address({ from: factory, salt, bytecodeHash: INIT_CODE_HASH });
+if (!tokensResponse.ok || !poolsResponse.ok) {
+  throw new Error("Prism discovery endpoint unavailable");
 }
+
+const tokens = await tokensResponse.json();
+const pools = await poolsResponse.json();
 ```
 
-Do not use `encodePacked` for Prism pool salts.
+Treat every response as untrusted input: schema-validate it, require chain ID
+4326, normalize addresses with a checksummed parser, cap response size, reject
+duplicates, and verify token decimals on-chain before displaying amounts.
 
-## Endpoints
+For a route endpoint, inspect the site's current requests or obtain the API
+contract from Prism. Do not guess query parameters from a `400` response.
 
-The imported material references these endpoints. Verify availability and
-response shape before relying on them:
+## Requirements before enabling writes
 
-```typescript
-const tokenList = await fetch("https://prismfi.cc/tokenlist.json").then((r) => r.json());
-const pools = await fetch("https://prismfi.cc/api/pools/list").then((r) => r.json());
-const routes = await fetch("https://prismfi.cc/api/swaps/swap-pools").then((r) => r.json());
-```
+Obtain all of the following from Prism or verified deployed source:
 
-## MOSS Integration Notes
+1. a current deployment manifest tied to chain ID 4326;
+2. ABIs and proxy/implementation relationships;
+3. quote and router semantics, including native-token handling;
+4. tax detection, tax amount, and exact-input/output behavior;
+5. pool-address derivation and init-code hash;
+6. supported fee tiers and tick spacing;
+7. Permit2 domain, spender, witness, and nonce rules;
+8. slippage, deadline, refund, and residual-token behavior.
 
-- App integration: use `moss-wallet-sdk`.
-- CLI execution: use `references/protocols/moss-cli/prism.md`.
-- For agent-operated writes, quote first, evaluate taxable-token routing,
-  set explicit slippage, use exact call scopes, and bundle ERC20 approval with
-  the consuming swap or liquidity call in one `mega moss execute --calls`
-  batch.
+Then compare deployed runtime bytecode or verified explorer source, simulate the
+exact transaction against the current MegaETH RPC, and validate target,
+selector, tokens, amount, recipient, value, deadline, and slippage before
+signing.
 
-## Safety
+## MOSS routing
 
-- Verify Prism addresses and ABIs against official Prism sources before
-  value-bearing execution.
-- Use `SelectiveTaxRouter` for taxable-token flows.
-- Do not auto-select leverage, collateral, tick ranges, rebalance parameters,
-  or risk settings for users.
-- Never submit a swap without a fresh quote and explicit slippage bound.
-- Use short deadlines for swaps, commonly 30-120 seconds.
-- Treat MTRKR as unverified external read-only tooling unless due diligence has
-  confirmed installation, auth/payment behavior, privacy posture, tool schemas,
-  and output reliability.
+Do not create a Prism write-capable delegated key from the inherited addresses
+or signatures. The MOSS-specific reference at
+[`moss-cli/prism.md`](moss-cli/prism.md) is deliberately limited to due
+diligence and read-only inspection until the write contract is verifiable.
+
+Awesome MegaETH AI and the partner skill remain attribution/discovery sources.
+MTRKR is not a source of truth and is not required for Prism integration.
