@@ -61,13 +61,19 @@ Download archives from `dist/` or build them locally:
 npm run build
 ```
 
-The build script syncs `skills/moss-wallet-cli/SKILL.md` and the complete
-released `references/` tree from the latest stable `megaeth-labs/wallet-cli`
-GitHub release before packaging. It verifies the release's published SHA-256,
-keeps this repo's `moss-wallet-cli` skill name, and adds a short routing note to
-use `megaeth-developer-skills` for protocol-specific guidance. Override the
-source with `WALLET_CLI_REPO` or `WALLET_CLI_RELEASE_API` only for release
-testing.
+The build is local and reproducible: it packages the checked-in skills without
+contacting GitHub. To refresh `moss-wallet-cli` from the latest stable
+`megaeth-labs/wallet-cli` GitHub release and then rebuild and validate, run:
+
+```bash
+npm run refresh
+```
+
+The sync verifies the release's published SHA-256 and rejects oversized,
+unsafe, draft, or prerelease artifacts. It keeps this repo's `moss-wallet-cli`
+skill name and adds a short routing note to use `megaeth-developer-skills` for
+protocol-specific guidance. Override the source with `WALLET_CLI_REPO` or an
+exact-tag `WALLET_CLI_RELEASE_API` only for release testing.
 
 Then unzip into the target agent's skill directory:
 
@@ -127,18 +133,37 @@ guidance under `skills/*/references/`.
 After editing skills or references:
 
 ```bash
+npm ci
 npm run validate
 ```
 
-Validation refreshes the MOSS CLI source and ZIP archives, checks skill
+Validation rebuilds the ZIP archives from the checked-in sources, checks skill
 frontmatter, local links, bundled script syntax and behavior, and archive
-integrity, then runs Skills CLI discovery. See the
-[public-release information audit](docs/release-information-audit.md) for the
-verified source snapshots, corrected claims, and unresolved verification
-catalog.
+integrity, then runs Skills CLI discovery. It intentionally does not fetch or
+replace skill content, so pull-request checks validate the proposed commit
+exactly as submitted.
 
 The MOSS CLI behavior in `moss-wallet-cli` should stay aligned with
-`megaeth-labs/wallet-cli`; `npm run build` refreshes the copied CLI skill
-content from that repo's latest release. MegaETH protocol and network guidance
-should be checked against `docs.megaeth.com`, `mega-dev.gitbook.io`, and the
-relevant canonical repositories before release.
+`megaeth-labs/wallet-cli`; `npm run refresh` refreshes the copied CLI skill
+content from that repo's latest stable release.
+MegaETH protocol and network guidance should be checked against
+`docs.megaeth.com`, `mega-dev.gitbook.io`, and the relevant canonical
+repositories before release.
+
+### Manual wallet-cli release synchronization
+
+After publishing a stable wallet-cli release, create a normal review branch
+and refresh from that exact tag:
+
+```bash
+git switch -c chore/sync-wallet-cli-v0.1.6 origin/main
+npm ci
+WALLET_CLI_RELEASE_API=https://api.github.com/repos/megaeth-labs/wallet-cli/releases/tags/v0.1.6 npm run refresh
+git diff --check
+git status --short
+npm run validate
+```
+
+Review the updated `moss-wallet-cli` skill and references together with the
+generated `dist/` archives, then commit and open a normal pull request. The
+second validation run should not introduce any additional changes.

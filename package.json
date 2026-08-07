@@ -5,6 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-dist.mjs",
-    "validate": "npm run build && node scripts/validate-repo.mjs && node scripts/test-helpers.mjs && npx skills add . --list"
+    "refresh": "npm run sync:wallet-cli && npm run validate",
+    "sync:wallet-cli": "node scripts/sync-wallet-cli.mjs",
+    "validate": "npm run build && npm run validate:static",
+    "validate:static": "node scripts/validate-repo.mjs && node scripts/test-helpers.mjs && skills add . --list"
+  },
+  "devDependencies": {
+    "skills": "1.5.22",
+    "tar": "7.5.22"
   }
 }

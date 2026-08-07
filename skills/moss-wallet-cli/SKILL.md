@@ -56,12 +56,102 @@ Release installs check for updates automatically.
 - Use `mega moss call` for read-only `eth_call` workflows.
 - Use `mega moss execute` or `mega moss transfer` only when the user asked
   for a state-changing operation.
-- Prefer `--json` for machine-readable output and `-t` only for compact text.
-  Human mode may include TTY-only color or login stderr helpers.
+- Bundle an ERC20 `approve` and its consuming contract call in the same
+  `mega moss execute --calls` transaction; the relay resets standalone
+  approvals at the end of a transaction.
+- Never guess a protocol contract address when defining a call scope. Prefer
+  `megaeth-developer-skills` when it is installed. If it is unavailable, that
+  absence alone is not a blocker: retrieve the protocol's current official
+  deployment registry or address-book source, confirm the MegaETH network,
+  and cross-check the address with read-only on-chain calls when possible.
+  Ask the user only when no authoritative source can be verified.
+- Prefer `--json` for machine-readable inspection output and `--terse` only for
+  compact tab-delimited output. On device-auth commands, both modes suppress
+  the terminal QR; `--terse` is not a headless or chat-presentation mode.
 
 ## Login And Browser Authorization
 
-Run loopback login on the same machine as the browser:
+### Choose the authorization flow
+
+Default to loopback for `login`, `create-key`, and `revoke`. Use
+`--auth-flow device` only when the user explicitly requests device
+authentication or approval must happen in a browser that cannot complete the
+CLI's `127.0.0.1` callback, typically on another machine or device. Do not
+choose device auth merely to obtain a user-visible URL; loopback prints its
+authorization URL too.
+
+Loopback normally attempts to open the system browser and prints its URL as a
+fallback while waiting. The legacy `--no-browser` flag only suppresses the
+automatic opener and prints the URL immediately; use it when that explicit
+behavior is requested. An opener failure does not invalidate the request or
+require another auth flow: keep the same process running and use its printed
+URL. Switch to device auth only when the same-machine callback cannot be
+completed.
+
+Run ordinary browser-opened loopback auth in the foreground. Do not background
+it or add fixed sleeps merely to wait for the browser callback. If a loopback
+URL must instead be copied into chat, keep the command in a persistent session
+that yields control while it remains alive, present the URL before continuing
+to wait, and never use a fixed sleep to guess when the URL is ready.
+
+For device auth in a text-capable chat, always use human output with none of
+`--json`, `--terse`, or `--qr-file`. Capture the complete terminal QR and
+present it once as preformatted text. This is the standard chat handoff.
+`--qr-file` is an advanced host-integration option that an agent must not choose
+autonomously; use it only when the user or host explicitly requests an image
+file and a real attachment API has already been verified. File access and a
+local path are not attachment capability.
+
+The device handoff is a prerequisite for approval, not a completion summary.
+In text chat, never invoke `mega moss ... --auth-flow device` directly as a
+foreground shell/tool call. Even if that tool says it streams output, its raw
+transcript is not the required assistant-visible handoff, and it may not return
+control until authorization has already finished. Start the command
+asynchronously in one persistent execution instead. The asynchronous boundary
+must be the execution tool call itself whenever the tool has a native
+background/session facility. For example, set Claude Code's Bash
+`run_in_background` option to `true`, call `TaskOutput` with `block: false` to
+read the prompt without waiting for authorization, then call `TaskOutput` with
+`block: true` on the same task only after the handoff is visible. In Codex, let
+the execution call yield a live session ID and keep polling that same session.
+Do not put `setsid`, `nohup`, `disown`, or a trailing shell `&` inside an
+otherwise foreground tool call: some hosts keep tracking its descendants and
+will not return control, which deadlocks the user handoff.
+
+Only when no native background/session facility exists, and the tool is known
+to return while a child stays alive, use one background supervisor with stdout
+and stderr redirected to a private temporary log. Have it write an atomic
+completion/status file after `mega moss` exits. Do not use `kill -0` alone as
+the completion condition: an exited child can remain as a zombie and still
+satisfy that check. If neither execution method can return control while the
+request remains alive, do not start device auth; give the user the exact local
+command instead. Start exactly one authorization request. If its launch does
+not return control as expected, terminate that request when possible and report
+the execution limitation; never retry by creating a second request.
+
+Inspect output immediately and wait for the `Waiting for approval...` marker,
+which terminates the complete static prompt. Use output-conditioned polling,
+not a blind fixed sleep. The readiness call must return control while the same
+CLI process remains alive. While authorization is still pending, copy the QR,
+clickable direct link, CLI-supplied user code, and expiry into an
+assistant-visible message. Only after sending that message may you make another
+tool call to wait for completion. Resume through the same native task/session
+facility and treat its completion status as authoritative. Do not start a new
+foreground shell loop that uses `kill -0`, guessed `grep` patterns, or sleeps to
+watch the native background task; that can stall after the task has already
+finished. Never wait for `Waiting for approval...` to disappear from captured
+output; the CLI output is append-only, so that line remains after completion. A
+handoff left in tool output or presented after approval or command completion
+is not a successful device-auth handoff.
+
+Before starting device auth or presenting any device-auth QR or link, read
+[references/device-auth.md](references/device-auth.md) completely and follow
+its handoff procedure. If the CLI says device-code auth is unavailable, use
+loopback auth or a wallet backend that supports `/v1/cli-auth/device`.
+
+### Loopback login
+
+Run login on the same machine as the approving browser:
 
 ```bash
 mega moss login
@@ -73,31 +163,23 @@ account profile locally. The callback must not contain private keys or
 transferable bearer credentials. Login alone is not enough for writes; create a
 scoped delegated key before `execute` or `transfer`.
 
-Prefer the default browser-opened loopback flow when the browser and CLI run on
-the same machine. Use `--no-browser` only as a fallback when the browser does
-not open automatically or when the user needs a URL to copy manually.
-`--no-browser` is not headless auth; it still uses same-machine loopback auth
-and waits for browser approval.
+### Complete authorization safely
 
-Use `--auth-flow device` only for headless or different-machine approval. The
-CLI prints a URL and verification code, the user approves in MegaETH Wallet,
-and the CLI polls the wallet API with PKCE until approval. `--no-browser` is
-unnecessary with device auth. If the CLI says device-code auth is unavailable,
-use loopback auth or a wallet backend that supports `/v1/cli-auth/device`.
-
-Do not reuse old authorization URLs or edit their query parameters. If an auth
-command times out, is interrupted, or the browser link stops verifying, rerun
-the command and use the new URL it opens or prints.
+Do not reuse old authorization URLs or edit their query parameters. The wallet
+may reject an authorization with an actionable reason, such as an unavailable
+fee token or mismatched wallet account. Treat that reason as terminal for the
+current request: correct the stated condition or ask the user what to do, and
+do not rerun the same authorization unchanged. If a request genuinely expires
+or is interrupted without an actionable rejection reason, start one fresh
+request and use only its new URL or code.
 
 For both browser-opened and `--no-browser` authorization flows, pass
 `--timeout-ms 300000` when passkey approval may take longer than the default
 120 seconds.
 
-Authorization commands that use `--no-browser` are interactive waiting
-processes. Do not choose them just to monitor auth; use normal browser-opened
-flows first. If `--no-browser` is necessary, make sure your execution tool will
-stream stdout/stderr immediately and keep the session open. Capture the printed
-URL, show it to the user, and continue monitoring until the command completes,
+Authorization commands are interactive waiting processes. Before starting one,
+make sure your execution tool will stream stdout/stderr immediately and keep
+the session open. Continue monitoring the same process until it completes,
 times out, or the user asks you to stop. If you cannot monitor live output, do
 not start the auth flow; tell the user the exact command to run locally instead.
 
@@ -160,6 +242,14 @@ the CLI requests fee spend capacity but no workflow spend rows. Supported
 shorthand fee-token symbols are `ETH`, `USDM`, `USDT0`, and `MEGA` on mainnet,
 and `ETH`, `USDM`, and `TST` on testnet.
 
+Before selecting a non-default fee token with `--fee-token` or a custom
+permission file's `feeToken`, use read-only balance inspection to verify that
+the wallet currently holds enough of that token for the expected relay fees.
+A supported fee-token symbol is not evidence that the wallet is funded with
+it. Do not select a workflow input or output token merely because the workflow
+uses or may acquire it later. If sufficient current balance cannot be verified,
+leave fee-token selection at the CLI default.
+
 Relay fees use delegated-key fee metadata plus relay/account enforcement, while
 workflow token/native movement uses `permissions.spend`. Future `execute` and
 `transfer` calls default to the `authorizedKey.feeToken` returned by wallet
@@ -203,10 +293,6 @@ encoder or `cast sig`; mismatched selectors cause wrong calls. For
 human-readable function signatures. Use raw selectors only when necessary; use
 `0xe0e0e0e0` specifically for native ETH no-calldata transfer scopes and never
 use wildcard/sentinel selectors such as `0x32323232`.
-
-> **ERC20 approvals must be bundled.** On the MegaETH relay, a standalone
-> `approve` is reset at end-of-transaction. Always include `approve` and its
-> consuming call in the same `--calls` array.
 
 Spend permission is not call permission. A key with `calls: []` or omitted
 `permissions.calls` cannot execute relay-backed writes, including native ETH
@@ -285,11 +371,12 @@ inspection, writes, revoke, fund, and logout commands.
 
 Use `create-key` when no existing key has the requested scope; it opens the
 browser/passkey approval flow and requires explicit call scope unless using
-`--from` or `--permissions`. Add `--auth-flow device` only when the user must
-approve from a separate browser/device. Use `revoke` to revoke a key on-chain;
-the CLI keeps an inactive audit record but removes local private key material.
-Revoke defaults to the key's stored fee token. On revoke, `--fee-token` selects
-the relay payment token for that revoke transaction.
+`--from` or `--permissions`. Follow the authorization-flow selection rules above
+for both `create-key` and `revoke`; read the device-auth reference before using
+that flow. Use `revoke` to revoke a key on-chain; the CLI keeps an inactive audit
+record but removes local private key material. Revoke defaults to the key's
+stored fee token. On revoke, `--fee-token` selects the relay payment token for
+that revoke transaction.
 
 ## Update And Uninstall
 
@@ -320,8 +407,10 @@ For the full permission schema and examples, read
 [references/permissions.md](references/permissions.md).
 
 For protocol-specific contract addresses, calldata, and workflow recipes, use
-`megaeth-developer-skills`; use this skill for `mega moss` execution and
-delegated-key permission rules.
+`megaeth-developer-skills` when it is installed; use this skill for `mega moss`
+execution and delegated-key permission rules. When that optional skill is not
+installed, follow the authoritative-source and read-only verification fallback
+in the Safety Rules rather than stopping solely because the package is absent.
 
 ## Transfer Funds
 

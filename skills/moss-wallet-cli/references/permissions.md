@@ -36,6 +36,13 @@ may still select a Gas Token for the approval transaction itself. Supported
 shorthand fee-token symbols are `ETH`, `USDM`, `USDT0`, and `MEGA` on mainnet,
 and `ETH`, `USDM`, and `TST` on testnet.
 
+Before choosing a non-default token through `--fee-token` or the full file's
+`feeToken`, use read-only balance inspection to verify that the wallet currently
+holds enough of it for the expected relay fees. Supported does not mean funded,
+and a token the workflow may acquire later is not available for earlier fees.
+If sufficient current balance cannot be verified, use the CLI's default fee
+token instead.
+
 ## File Shape
 
 The file passed to `--permissions` is the complete permission request, not only
