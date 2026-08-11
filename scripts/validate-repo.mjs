@@ -132,7 +132,12 @@ for (const skillDir of skillDirs) {
   validateSkill(skillDir);
 }
 
-const markdownFiles = [join(repoRoot, 'README.md'), ...walk(skillsDir, (path) => path.endsWith('.md'))];
+const contributingFile = join(repoRoot, 'CONTRIBUTING.md');
+const markdownFiles = [
+  join(repoRoot, 'README.md'),
+  ...(existsSync(contributingFile) ? [contributingFile] : []),
+  ...walk(skillsDir, (path) => path.endsWith('.md')),
+];
 if (existsSync(join(repoRoot, 'docs'))) {
   markdownFiles.push(...walk(join(repoRoot, 'docs'), (path) => path.endsWith('.md')));
 }
