@@ -16,14 +16,51 @@ name must match the directory name, and supporting material belongs in that
 skill's `references/` or `scripts/` directory.
 
 Protocol-specific guidance belongs under
-`skills/megaeth-developer-skills/references/`, not in a separate installable
-skill. Keep command safety, delegated-key permissions, and wallet operation
-mechanics in `moss-wallet-cli`.
+`skills/megaeth-developer-skills/references/protocols/`, not in a separate
+installable skill. Keep generic command safety, delegated-key permissions, and
+wallet operation mechanics in `moss-wallet-cli`.
 
 Plain Markdown recipes should remain skill references. Add a plugin package only
 when a capability needs plugin behavior such as bundled MCP servers, app
 manifests, tool binaries, authentication or configuration, a marketplace install
 unit, or an independent release cadence.
+
+## Updating Protocol Guidance
+
+Protocol integrations have two distinct documentation surfaces:
+
+- Put dApp and contract integration guidance in
+  `skills/megaeth-developer-skills/references/protocols/<protocol>.md`.
+- Put protocol-specific `mega moss` interaction recipes in
+  `skills/megaeth-developer-skills/references/protocols/moss-cli/<protocol>.md`.
+  Add this file only when current deployment and ABI evidence supports concrete
+  calls and narrowly scoped delegated-key permissions.
+
+Add or update the protocol's entry in
+[`protocol-directory.md`](skills/megaeth-developer-skills/references/protocol-directory.md)
+whenever its coverage changes. Keep shared protocol facts in the developer
+reference and let the MOSS CLI reference focus on command construction,
+permissions, validation, and execution safety rather than duplicating the full
+integration guide.
+
+Use the source hierarchy in
+[`resources.md`](skills/megaeth-developer-skills/references/resources.md). In
+particular:
+
+- Prefer current protocol-owned documentation, repositories, deployment
+  manifests, generated ABIs, and package types.
+- Use current MegaETH documentation and canonical registries for network and
+  token metadata.
+- Treat ecosystem indexes, inherited skills, and third-party examples as
+  discovery inputs rather than authoritative sources.
+- Identify the network and chain ID for every deployment, verify that contract
+  code exists, and match addresses and function signatures to a current
+  protocol-owned source before documenting a write.
+- State source conflicts or missing evidence explicitly. Do not provide
+  executable write recipes, approval targets, or delegated-key scopes when the
+  deployment or ABI cannot be verified.
+- Include amount units, approval targets, slippage and deadline controls, and
+  simulation or read-back checks where they apply to a value-moving workflow.
 
 ## Making Changes
 
@@ -55,44 +92,17 @@ git diff --check
 git status --short
 ```
 
-## Synchronizing Wallet CLI Guidance
-
-The `moss-wallet-cli` skill should stay aligned with stable releases from
-`megaeth-labs/wallet-cli`. To refresh from the latest stable release and run the
-full validation suite:
-
-```bash
-npm run refresh
-```
-
-The synchronization verifies the published SHA-256 checksum and rejects
-oversized, unsafe, draft, or prerelease artifacts. It preserves this repository's
-`moss-wallet-cli` skill name and adds the routing note for protocol-specific
-guidance.
-
-For a release update, use a normal review branch and refresh from the exact
-published tag. Replace `vX.Y.Z` with the release being synchronized:
-
-```bash
-git switch -c chore/sync-wallet-cli-vX.Y.Z origin/main
-npm ci
-WALLET_CLI_RELEASE_API=https://api.github.com/repos/megaeth-labs/wallet-cli/releases/tags/vX.Y.Z npm run refresh
-git diff --check
-git status --short
-npm run validate
-```
-
-Review the updated skill and references together with the generated `dist/`
-archives. The second validation run should not introduce additional changes.
-Use `WALLET_CLI_REPO` or an exact-tag `WALLET_CLI_RELEASE_API` override only for
-release testing.
-
 ## Pull Request Checklist
 
 - Keep the change focused and explain its developer or user impact.
 - Follow the flat skill layout and keep supporting guidance with its owning
   skill.
-- Verify technical claims against official or canonical sources.
+- For protocol changes, update the protocol directory and keep developer and
+  MOSS CLI guidance separated as described above.
+- Verify technical claims against official or canonical sources and link the
+  evidence used.
+- Withhold executable write guidance when addresses, deployments, or ABIs
+  cannot be verified.
 - Run `npm run validate` and include the result in the pull request description.
 - Commit regenerated `dist/` archives when source skill content changes.
 - Confirm `git diff --check` passes and no unexpected files remain.

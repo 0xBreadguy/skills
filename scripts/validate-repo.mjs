@@ -133,9 +133,11 @@ for (const skillDir of skillDirs) {
 }
 
 const contributingFile = join(repoRoot, 'CONTRIBUTING.md');
+const maintainersFile = join(repoRoot, '.github', 'MAINTAINERS.md');
 const markdownFiles = [
   join(repoRoot, 'README.md'),
   ...(existsSync(contributingFile) ? [contributingFile] : []),
+  ...(existsSync(maintainersFile) ? [maintainersFile] : []),
   ...walk(skillsDir, (path) => path.endsWith('.md')),
 ];
 if (existsSync(join(repoRoot, 'docs'))) {

@@ -81,14 +81,6 @@ OpenClaw:    skills/<skill-name>/
 Hermes:      .hermes/skills/<skill-name>/
 ```
 
-Prebuilt archives are available in `dist/`. To rebuild them from the checked-in
-skill sources without fetching remote skill content:
-
-```bash
-npm ci
-npm run build
-```
-
 ## Usage
 
 Skills are automatically available once installed.
@@ -118,5 +110,5 @@ replacing skill content.
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for repository
-conventions, validation requirements, Wallet CLI synchronization, and pull
-request guidelines.
+conventions, protocol guidance requirements, validation, and pull request
+guidelines.
